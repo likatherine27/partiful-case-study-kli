@@ -13,6 +13,11 @@ MODEL = "claude-sonnet-5"
 # this also stops a runaway response from burning tokens.
 MAX_TOKENS = 1024
 
+# Safety cap on tool calls within a single user turn. Claude is expected to
+# call one or two tools and then reply with text; this just guards against
+# the model looping on tool calls indefinitely and never responding.
+MAX_TOOL_ITERATIONS = 8
+
 
 # --- Policy: ID verification ----------------------------------------------
 
