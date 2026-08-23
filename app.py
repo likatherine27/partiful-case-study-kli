@@ -18,7 +18,6 @@ for the assistant, and a best-effort (not a pixel trace) approximation of
 Partiful's logo mark on the assistant's avatar.
 """
 
-import base64
 import sys
 from pathlib import Path
 
@@ -54,25 +53,10 @@ def _html(markup: str) -> str:
     )
 
 
-# A best-effort, original approximation of Partiful's logo mark (an
-# abstract flowing loop) for the assistant's avatar — not a trace of
-# their actual registered artwork, just an attempt at the same spirit.
-_SWIRL_SVG = """
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-<path d="M62 78 C40 82, 22 68, 24 48 C26 26, 50 14, 68 24
-         C84 33, 84 54, 68 60 C56 65, 44 58, 46 46"
-      fill="none" stroke="url(#g)" stroke-width="13" stroke-linecap="round"/>
-<defs>
-<linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-<stop offset="0%" stop-color="#F5F1FA"/>
-<stop offset="100%" stop-color="#C9B8E8"/>
-</linearGradient>
-</defs>
-</svg>
-"""
-_SWIRL_DATA_URI = "data:image/svg+xml;base64," + base64.b64encode(
-    _SWIRL_SVG.encode()
-).decode()
+# The assistant's avatar — a party-popper emoji (matching the reference
+# icon Katherine shared), passed as Streamlit's native `avatar=` argument
+# rather than a hand-drawn SVG hack; see ASSISTANT_AVATAR usage below.
+ASSISTANT_AVATAR = "\U0001F389"  # 🎉
 
 _STYLE = """
 <style>
@@ -118,20 +102,39 @@ h1 {
     border: 1px solid var(--pf-overlay-border) !important;
     border-radius: 16px !important;
 }
+[data-testid="stChatInput"]:focus-within {
+    border-color: #FFFFFF !important;
+}
+[data-testid="stChatInput"]:focus-within > div {
+    border-color: #FFFFFF !important;
+}
 [data-testid="stChatMessage"] {
     background: transparent !important;
+    align-items: center !important;
 }
 [data-testid="stChatMessageContent"] p {
     margin: 0;
     font-size: 15px;
     line-height: 1.5;
 }
+/* User row: icon on the right, bubble height matched to the chat input */
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+}
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] {
     background: var(--pf-overlay);
     border: 1px solid var(--pf-overlay-border);
     border-radius: 16px;
-    padding: 10px 14px;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
     color: var(--pf-text);
+}
+/* Assistant row: icon on the left (Streamlit's default order) */
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) {
+    justify-content: flex-start;
 }
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] {
     background: transparent;
@@ -143,19 +146,8 @@ h1 {
     background: #D7D6DC !important;
     color: #55535E !important;
 }
-[data-testid="stChatMessageAvatarAssistant"] {
-    background: #17141D !important;
-    border-radius: 9px !important;
-    background-image: url('__SWIRL_URI__') !important;
-    background-repeat: no-repeat !important;
-    background-position: center !important;
-    background-size: 62% !important;
-}
-[data-testid="stChatMessageAvatarAssistant"] [data-testid="stIconMaterial"] {
-    display: none !important;
-}
 </style>
-""".replace("__SWIRL_URI__", _SWIRL_DATA_URI)
+"""
 
 st.markdown(_html(_STYLE), unsafe_allow_html=True)
 
@@ -207,7 +199,8 @@ if inactivity_message is not None:
     st.session_state.display_messages.append(("assistant", inactivity_message))
 
 for role, text in st.session_state.display_messages:
-    with st.chat_message(role):
+    avatar = ASSISTANT_AVATAR if role == "assistant" else None
+    with st.chat_message(role, avatar=avatar):
         st.write(text)
 
 
@@ -217,7 +210,7 @@ def _send_turn(user_text: str) -> None:
     with st.chat_message("user"):
         st.write(user_text)
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar=ASSISTANT_AVATAR):
         placeholder = st.empty()
         placeholder.markdown(_TYPING_INDICATOR, unsafe_allow_html=True)
         reply = agent.send_user_message(user_text)
