@@ -3,3 +3,4 @@ streamlit>=1.40.0      # chat UI (message bubbles + ID photo upload)
 python-dotenv>=1.0.0   # loads the API key from .env so it never lands in source
 PyYAML>=6.0            # reads the test set from tests/test_cases.yaml
 pytest>=8.0.0          # unit tests for the guardrails
+Pillow>=10.0.0          # dev-only: regenerates assets/*.jpg via generate_sample_ids.py
