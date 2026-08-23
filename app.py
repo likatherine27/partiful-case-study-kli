@@ -11,8 +11,14 @@ internal session/debug panel. The internal-API action log the assignment
 asks for still happens (see mock_api.py's print calls); it just surfaces
 in the terminal running `streamlit run`, not on screen, since a real user
 would never see that either.
+
+Styling here follows Katherine's explicit direction: a fixed gradient
+background, translucent overlay bubbles for the user, plain unbubbled text
+for the assistant, and a best-effort (not a pixel trace) approximation of
+Partiful's logo mark on the assistant's avatar.
 """
 
+import base64
 import sys
 from pathlib import Path
 
@@ -30,27 +36,129 @@ st.set_page_config(page_title="Partiful Support", page_icon="📱")
 # an inactivity check has to fire even when the user does nothing at all.
 # This forces a re-run every few seconds so check_inactivity() below gets a
 # chance to notice a quiet user without anyone touching the page.
-st_autorefresh(interval=15_000, key="inactivity_poll")
+st_autorefresh(interval=60_000, key="inactivity_poll")
 
-st.markdown(
+
+def _html(markup: str) -> str:
+    """Prepares raw HTML/CSS for st.markdown(..., unsafe_allow_html=True).
+
+    Two markdown quirks otherwise corrupt this: a line indented 4+ spaces
+    is treated as a preformatted code block (real CSS is naturally
+    nested, so Python's source indentation trips this), and a BLANK line
+    terminates a raw-HTML block outright, even mid-<style>-tag, silently
+    dumping everything after it into a visible <p>. Flattening
+    indentation and dropping blank lines avoids both.
     """
-    <style>
-    .typing-indicator { display: flex; gap: 4px; padding: 4px 0 2px; }
-    .typing-indicator span {
-        width: 7px; height: 7px; border-radius: 50%;
-        background: #9AA1AC;
-        animation: typing-bounce 1.1s infinite ease-in-out;
-    }
-    .typing-indicator span:nth-child(2) { animation-delay: 0.15s; }
-    .typing-indicator span:nth-child(3) { animation-delay: 0.30s; }
-    @keyframes typing-bounce {
-        0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-        30% { transform: translateY(-5px); opacity: 1; }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+    return "\n".join(
+        line.strip() for line in markup.strip().splitlines() if line.strip()
+    )
+
+
+# A best-effort, original approximation of Partiful's logo mark (an
+# abstract flowing loop) for the assistant's avatar — not a trace of
+# their actual registered artwork, just an attempt at the same spirit.
+_SWIRL_SVG = """
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<path d="M62 78 C40 82, 22 68, 24 48 C26 26, 50 14, 68 24
+         C84 33, 84 54, 68 60 C56 65, 44 58, 46 46"
+      fill="none" stroke="url(#g)" stroke-width="13" stroke-linecap="round"/>
+<defs>
+<linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0%" stop-color="#F5F1FA"/>
+<stop offset="100%" stop-color="#C9B8E8"/>
+</linearGradient>
+</defs>
+</svg>
+"""
+_SWIRL_DATA_URI = "data:image/svg+xml;base64," + base64.b64encode(
+    _SWIRL_SVG.encode()
+).decode()
+
+_STYLE = """
+<style>
+:root {
+    --pf-text: #F5F3F8;
+    --pf-overlay: rgba(255,255,255,0.08);
+    --pf-overlay-border: rgba(255,255,255,0.14);
+}
+[data-testid="stApp"] {
+    background:
+        radial-gradient(ellipse 900px 650px at 8% 0%, #8D6B82 0%, transparent 55%),
+        radial-gradient(ellipse 900px 650px at 92% 0%, #7C8DC4 0%, transparent 55%),
+        linear-gradient(180deg, #5C4E6E 0%, #2E2738 38%, #100D16 80%);
+    background-attachment: fixed;
+}
+h1 {
+    color: var(--pf-text) !important;
+}
+.pf-subheader {
+    font-size: 13px;
+    color: rgba(245,243,248,0.6);
+    margin-top: -14px;
+    margin-bottom: 22px;
+}
+.typing-indicator { display: flex; gap: 4px; padding: 4px 0 2px; }
+.typing-indicator span {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--pf-text);
+    opacity: 0.6;
+    animation: typing-bounce 1.1s infinite ease-in-out;
+}
+.typing-indicator span:nth-child(2) { animation-delay: 0.15s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.30s; }
+@keyframes typing-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-5px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .typing-indicator span { animation: none !important; }
+}
+[data-testid="stChatInput"] {
+    background: var(--pf-overlay) !important;
+    border: 1px solid var(--pf-overlay-border) !important;
+    border-radius: 16px !important;
+}
+[data-testid="stChatMessage"] {
+    background: transparent !important;
+}
+[data-testid="stChatMessageContent"] p {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.5;
+}
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] {
+    background: var(--pf-overlay);
+    border: 1px solid var(--pf-overlay-border);
+    border-radius: 16px;
+    padding: 10px 14px;
+    color: var(--pf-text);
+}
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] {
+    background: transparent;
+    border: none;
+    padding: 6px 0;
+    color: var(--pf-text);
+}
+[data-testid="stChatMessageAvatarUser"] {
+    background: #D7D6DC !important;
+    color: #55535E !important;
+}
+[data-testid="stChatMessageAvatarAssistant"] {
+    background: #17141D !important;
+    border-radius: 9px !important;
+    background-image: url('__SWIRL_URI__') !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-size: 62% !important;
+}
+[data-testid="stChatMessageAvatarAssistant"] [data-testid="stIconMaterial"] {
+    display: none !important;
+}
+</style>
+""".replace("__SWIRL_URI__", _SWIRL_DATA_URI)
+
+st.markdown(_html(_STYLE), unsafe_allow_html=True)
+
 _TYPING_INDICATOR = (
     '<div class="typing-indicator"><span></span><span></span><span></span></div>'
 )
@@ -86,6 +194,10 @@ def _awaiting_id_upload() -> bool:
 
 
 st.title("Partiful Support")
+st.markdown(
+    _html('<p class="pf-subheader">what can we help you with?</p>'),
+    unsafe_allow_html=True,
+)
 
 # Runs on every single script execution, including autorefresh-triggered
 # ones with no user action at all — that's what lets "are you still
@@ -109,12 +221,9 @@ def _send_turn(user_text: str) -> None:
         placeholder = st.empty()
         placeholder.markdown(_TYPING_INDICATOR, unsafe_allow_html=True)
         reply = agent.send_user_message(user_text)
-        # Persist to session_state BEFORE the next Streamlit call. An
-        # autorefresh-triggered rerun (see check_inactivity above) can
-        # interrupt script execution at the next checkpoint — if the
-        # append happened after placeholder.write() instead, an
-        # unlucky-timed interrupt could drop this turn from the visible
-        # history even though the agent's own memory still has it.
+        # Persist to session_state BEFORE the next Streamlit call — see
+        # the note in memory/commit history about why ordering here
+        # matters for a rerun that lands mid-turn.
         st.session_state.display_messages.append(("assistant", reply))
         placeholder.write(reply)
 
