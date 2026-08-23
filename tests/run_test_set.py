@@ -1,0 +1,116 @@
+"""Runs tests/test_cases.yaml as real conversations against the live Claude
+API, using the exact same Agent class app.py uses — no UI, no mocking of
+Claude itself (only Partiful's backend is mocked, per the assignment).
+
+Each case is checked against ground truth the agent already tracks for
+itself (state.outcome, the exact tool-call sequence) rather than fuzzy text
+matching, so a pass means the actual flow and guardrails behaved correctly
+in a real conversation — not just that a reply sounded plausible.
+
+Usage:
+    python3 tests/run_test_set.py            # run every case
+    python3 tests/run_test_set.py --verbose   # also print each turn/reply
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import yaml
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from partiful_agent.agent import Agent  # noqa: E402
+
+CASES_FILE = Path(__file__).parent / "test_cases.yaml"
+
+
+class CaseFailure(AssertionError):
+    pass
+
+
+def _check(condition: bool, message: str) -> None:
+    if not condition:
+        raise CaseFailure(message)
+
+
+def run_case(case: dict, *, verbose: bool) -> None:
+    agent = Agent()
+    replies: list[str] = []
+
+    for turn in case["turns"]:
+        if verbose:
+            print(f"    >>> {turn}")
+        reply = agent.send_user_message(turn)
+        replies.append(reply)
+        if verbose:
+            print(f"    <<< {reply}")
+
+    state = agent.state
+
+    if "expected_outcome" in case:
+        _check(
+            state.outcome.value == case["expected_outcome"],
+            f"expected outcome '{case['expected_outcome']}', got '{state.outcome.value}'",
+        )
+
+    if "outcome_must_not_be" in case:
+        _check(
+            state.outcome.value != case["outcome_must_not_be"],
+            f"outcome must not be '{case['outcome_must_not_be']}', but it was",
+        )
+
+    if "expected_actions" in case:
+        _check(
+            state.actions_taken == case["expected_actions"],
+            f"expected actions {case['expected_actions']}, got {state.actions_taken}",
+        )
+
+    if "expected_account_locked" in case:
+        locked = state.account.locked if state.account else None
+        _check(
+            locked == case["expected_account_locked"],
+            f"expected account.locked={case['expected_account_locked']}, got {locked}",
+        )
+
+    if "final_reply_must_contain" in case:
+        needle = case["final_reply_must_contain"].lower()
+        _check(
+            needle in replies[-1].lower(),
+            f"expected final reply to contain '{needle}', got: {replies[-1]!r}",
+        )
+
+    if "first_reply_must_not_contain" in case:
+        first = replies[0].lower()
+        for forbidden in case["first_reply_must_not_contain"]:
+            _check(
+                forbidden.lower() not in first,
+                f"first reply must not contain '{forbidden}', got: {replies[0]!r}",
+            )
+
+
+def main() -> int:
+    verbose = "--verbose" in sys.argv
+    cases = yaml.safe_load(CASES_FILE.read_text())
+
+    passed, failed = 0, 0
+    for case in cases:
+        label = case["id"]
+        print(f"\n[{label}] {case.get('description', '').strip()}")
+        try:
+            run_case(case, verbose=verbose)
+        except CaseFailure as exc:
+            print(f"  FAIL — {exc}")
+            failed += 1
+        else:
+            print("  PASS")
+            passed += 1
+
+    total = passed + failed
+    print(f"\n{'=' * 50}\n{passed}/{total} passed")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
