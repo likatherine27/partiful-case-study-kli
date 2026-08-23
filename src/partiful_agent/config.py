@@ -26,6 +26,29 @@ MAX_TOOL_ITERATIONS = 8
 MAX_ID_ATTEMPTS = 3
 
 
+# --- Policy: other retry-limited steps --------------------------------------
+#
+# Three more independent three-strikes counters. Unlike ID verification,
+# none of these lock the account on exhaustion — they just end the chat and
+# point the user to support, since nothing security-sensitive happened.
+
+# How many times the agent will ask "what do you need help with" before
+# giving up on a user who keeps responding with something unclear.
+MAX_INTENT_CLARIFICATION_ATTEMPTS = 3
+
+# How many times a user can give a phone number that's malformed, in an
+# unsupported region, or not found before the agent gives up looking it up.
+MAX_PHONE_LOOKUP_ATTEMPTS = 3
+
+# How many times a user can propose a new number that's malformed or in an
+# unsupported region before the agent gives up on the change.
+MAX_NEW_NUMBER_ATTEMPTS = 3
+
+# This mock only supports US numbers. Documented assumption, not a real
+# carrier/region rule.
+SUPPORTED_COUNTRY_CODE = "+1"
+
+
 # --- Policy: session inactivity -------------------------------------------
 
 # If the user goes quiet this long, the agent checks whether they're still there.

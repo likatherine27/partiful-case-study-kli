@@ -12,13 +12,15 @@ exist — lives in prompts.py and tools.py, not here.
 
 from __future__ import annotations
 
+import time
+
 import anthropic
 from dotenv import load_dotenv
 
 from . import config
 from .mock_api import MockPartifulAPI
 from .prompts import SYSTEM_PROMPT
-from .state import SessionState
+from .state import SessionOutcome, SessionState
 from .tools import TOOL_SCHEMAS, execute_tool
 
 load_dotenv()
@@ -48,15 +50,64 @@ class Agent:
         call — the caller only sees the final text, once Claude is done
         acting and ready to speak.
         """
+        self.state.record_activity()
         self.messages.append({"role": "user", "content": text})
         return self._run_until_text_reply()
+
+    def check_inactivity(self) -> str | None:
+        """Call this periodically, independent of user input, to notice a
+        quiet user. Unlike everything else in this file, this doesn't call
+        Claude at all — "are you still there?" and the eventual timeout
+        message are both scripted, not generated, since they're a
+        mechanical clock check rather than something needing judgment.
+
+        Returns the new message to show if something just happened (the
+        check-in or the timeout), or None if there's nothing to do yet.
+        Whatever it returns is also appended to `self.messages`, so if the
+        conversation resumes, Claude has full context that this happened.
+        """
+        if self.state.outcome.is_terminal:
+            return None
+
+        now = time.monotonic()
+
+        if self.state.still_there_prompted_at is None:
+            if now - self.state.last_activity_at < config.INACTIVITY_PROMPT_SECONDS:
+                return None
+            self.state.still_there_prompted_at = now
+            message = "Hey, just checking — are you still there?"
+            self.messages.append({"role": "assistant", "content": message})
+            return message
+
+        if now - self.state.still_there_prompted_at < config.INACTIVITY_TIMEOUT_SECONDS:
+            return None
+
+        self.state.outcome = SessionOutcome.TIMED_OUT
+        message = (
+            "Since I haven't heard back, I'm going to close this chat out. "
+            "Feel free to start a new one anytime, or email "
+            f"{config.SUPPORT_EMAIL} if you still need help."
+        )
+        self.messages.append({"role": "assistant", "content": message})
+        return message
 
     def _run_until_text_reply(self) -> str:
         for _ in range(config.MAX_TOOL_ITERATIONS):
             response = self._client.messages.create(
                 model=config.MODEL,
                 max_tokens=config.MAX_TOKENS,
-                system=SYSTEM_PROMPT,
+                # cache_control marks a breakpoint: everything up through
+                # this block (the tool schemas, then this system prompt —
+                # both fully static) gets cached instead of re-billed at
+                # full price on every single call. Only the growing
+                # `messages` list below is ever actually new.
+                system=[
+                    {
+                        "type": "text",
+                        "text": SYSTEM_PROMPT,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
                 tools=TOOL_SCHEMAS,
                 messages=self.messages,
             )

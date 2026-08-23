@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 import streamlit as st
+from streamlit_autorefresh import st_autorefresh
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
@@ -24,6 +25,12 @@ from partiful_agent.agent import Agent  # noqa: E402
 from partiful_agent.state import SessionOutcome  # noqa: E402
 
 st.set_page_config(page_title="Partiful Support", page_icon="📱")
+
+# Streamlit only re-runs this script in response to user interaction, but
+# an inactivity check has to fire even when the user does nothing at all.
+# This forces a re-run every few seconds so check_inactivity() below gets a
+# chance to notice a quiet user without anyone touching the page.
+st_autorefresh(interval=15_000, key="inactivity_poll")
 
 st.markdown(
     """
@@ -80,6 +87,13 @@ def _awaiting_id_upload() -> bool:
 
 st.title("Partiful Support")
 
+# Runs on every single script execution, including autorefresh-triggered
+# ones with no user action at all — that's what lets "are you still
+# there?" and the eventual timeout fire on their own.
+inactivity_message = agent.check_inactivity()
+if inactivity_message is not None:
+    st.session_state.display_messages.append(("assistant", inactivity_message))
+
 for role, text in st.session_state.display_messages:
     with st.chat_message(role):
         st.write(text)
@@ -95,23 +109,39 @@ def _send_turn(user_text: str) -> None:
         placeholder = st.empty()
         placeholder.markdown(_TYPING_INDICATOR, unsafe_allow_html=True)
         reply = agent.send_user_message(user_text)
+        # Persist to session_state BEFORE the next Streamlit call. An
+        # autorefresh-triggered rerun (see check_inactivity above) can
+        # interrupt script execution at the next checkpoint — if the
+        # append happened after placeholder.write() instead, an
+        # unlucky-timed interrupt could drop this turn from the visible
+        # history even though the agent's own memory still has it.
+        st.session_state.display_messages.append(("assistant", reply))
         placeholder.write(reply)
-    st.session_state.display_messages.append(("assistant", reply))
 
 
-if _awaiting_id_upload():
-    uploaded = st.file_uploader(
-        "Attach a photo ID", type=["jpg", "jpeg", "png"]
-    )
-    # The mock verifier keys off the filename (see mock_api.py), so
-    # uploading a file sends its name to the agent as a normal chat turn —
-    # no real image data needs to reach Claude for this project.
-    if uploaded is not None and uploaded.name != st.session_state.processed_upload:
-        st.session_state.processed_upload = uploaded.name
-        _send_turn(f"[Uploaded ID photo: {uploaded.name}]")
+if agent.state.outcome == SessionOutcome.TIMED_OUT:
+    # A timeout is the one terminal state that really ends things — every
+    # other terminal outcome leaves the chat open for "anything else?" or
+    # a redirect, but there's no one left to talk to here.
+    if st.button("Start a new chat"):
+        st.session_state.agent = new_agent()
+        st.session_state.display_messages = []
+        st.session_state.processed_upload = None
         st.rerun()
+else:
+    if _awaiting_id_upload():
+        uploaded = st.file_uploader(
+            "Attach a photo ID", type=["jpg", "jpeg", "png"]
+        )
+        # The mock verifier keys off the filename (see mock_api.py), so
+        # uploading a file sends its name to the agent as a normal chat
+        # turn — no real image data needs to reach Claude for this project.
+        if uploaded is not None and uploaded.name != st.session_state.processed_upload:
+            st.session_state.processed_upload = uploaded.name
+            _send_turn(f"[Uploaded ID photo: {uploaded.name}]")
+            st.rerun()
 
-user_text = st.chat_input("Message Partiful support...")
-if user_text:
-    _send_turn(user_text)
-    st.rerun()
+    user_text = st.chat_input("Message Partiful support...")
+    if user_text:
+        _send_turn(user_text)
+        st.rerun()

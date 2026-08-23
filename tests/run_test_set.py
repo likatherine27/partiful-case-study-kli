@@ -8,8 +8,15 @@ matching, so a pass means the actual flow and guardrails behaved correctly
 in a real conversation — not just that a reply sounded plausible.
 
 Usage:
-    python3 tests/run_test_set.py            # run every case
-    python3 tests/run_test_set.py --verbose   # also print each turn/reply
+    python3 tests/run_test_set.py                  # run every case
+    python3 tests/run_test_set.py --verbose         # also print each turn/reply
+    python3 tests/run_test_set.py self_serve_redirect happy_path_verified_and_changed
+                                                     # run only these case IDs — each
+                                                     # case is a handful of real API
+                                                     # calls, so this is the cheap way
+                                                     # to re-check one thing you're
+                                                     # actively debugging instead of
+                                                     # re-spending on all of them.
 """
 
 from __future__ import annotations
@@ -91,8 +98,16 @@ def run_case(case: dict, *, verbose: bool) -> None:
 
 
 def main() -> int:
-    verbose = "--verbose" in sys.argv
+    args = sys.argv[1:]
+    verbose = "--verbose" in args
+    only_ids = {a for a in args if not a.startswith("--")}
+
     cases = yaml.safe_load(CASES_FILE.read_text())
+    if only_ids:
+        cases = [c for c in cases if c["id"] in only_ids]
+        missing = only_ids - {c["id"] for c in cases}
+        if missing:
+            print(f"Unknown case id(s), skipping: {', '.join(sorted(missing))}")
 
     passed, failed = 0, 0
     for case in cases:

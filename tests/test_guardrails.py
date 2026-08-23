@@ -127,3 +127,167 @@ def test_self_serve_never_touches_verification_state():
     assert state.id_verified is False
     assert state.account is None
     assert api.calls == []  # no backend action for a self-serve redirect
+
+
+# --- Unclear intent ---------------------------------------------------------
+
+
+def test_unclear_intent_escalates_after_three_attempts():
+    state, api = _fresh()
+    for _ in range(2):
+        result = execute_tool("record_unclear_intent", {}, state=state, api=api)
+        assert "ask again" in result.lower()
+        assert state.outcome == SessionOutcome.IN_PROGRESS
+
+    result = execute_tool("record_unclear_intent", {}, state=state, api=api)
+    assert "end the conversation" in result.lower()
+    assert state.outcome == SessionOutcome.ESCALATED_UNCLEAR_INTENT
+
+
+# --- Phone number validation (account lookup) -------------------------------
+
+
+def test_malformed_phone_number_is_rejected_without_hitting_backend():
+    state, api = _fresh()
+    result = execute_tool(
+        "look_up_account", {"phone_number": "12345"}, state=state, api=api
+    )
+    assert "valid phone number" in result.lower()
+    assert state.phone_lookup_attempts == 1
+    assert api.calls == []  # never reached the mock backend
+
+
+def test_non_us_phone_number_is_rejected_as_unsupported_region():
+    state, api = _fresh()
+    result = execute_tool(
+        "look_up_account", {"phone_number": "+442071234567"}, state=state, api=api
+    )
+    assert "outside a supported region" in result.lower()
+    assert state.phone_lookup_attempts == 1
+
+
+def test_three_failed_lookups_escalates_and_stops():
+    state, api = _fresh()
+    for bad in ["12345", "+442071234567", "+19990000000"]:
+        result = execute_tool(
+            "look_up_account", {"phone_number": bad}, state=state, api=api
+        )
+    assert "end the conversation" in result.lower()
+    assert state.outcome == SessionOutcome.ESCALATED_PHONE_LOOKUP_FAILED
+    assert state.account is None
+
+
+def test_valid_lookup_after_earlier_failures_still_succeeds():
+    state, api = _fresh()
+    execute_tool("look_up_account", {"phone_number": "12345"}, state=state, api=api)
+    result = execute_tool(
+        "look_up_account", {"phone_number": VALID_PHONE}, state=state, api=api
+    )
+    assert "found account" in result.lower()
+    assert state.account is not None
+    assert state.outcome == SessionOutcome.IN_PROGRESS
+
+
+# --- New number validation + collision --------------------------------------
+
+
+def _verified_state():
+    state, api = _fresh()
+    execute_tool("look_up_account", {"phone_number": VALID_PHONE}, state=state, api=api)
+    execute_tool("verify_id", {"image_ref": "valid_id.jpg"}, state=state, api=api)
+    return state, api
+
+
+def test_malformed_new_number_is_rejected_and_does_not_commit():
+    state, api = _verified_state()
+    result = execute_tool(
+        "update_phone_number", {"new_number": "not-a-number"}, state=state, api=api
+    )
+    assert "valid phone number" in result.lower()
+    assert state.new_number_attempts == 1
+    assert state.outcome == SessionOutcome.IN_PROGRESS
+    assert not any(c.name == "update_phone_number" for c in api.calls)
+
+
+def test_three_failed_new_numbers_escalates_and_stops():
+    state, api = _verified_state()
+    for bad in ["nope", "+442071234567", "still-bad"]:
+        result = execute_tool(
+            "update_phone_number", {"new_number": bad}, state=state, api=api
+        )
+    assert "end the conversation" in result.lower()
+    assert state.outcome == SessionOutcome.ESCALATED_NEW_NUMBER_FAILED
+
+
+def test_new_number_already_on_another_account_is_a_collision():
+    state, api = _verified_state()  # this account's number is VALID_PHONE
+    result = execute_tool(
+        "update_phone_number", {"new_number": OTHER_PHONE}, state=state, api=api
+    )
+    assert "already on another" in result.lower()
+    assert state.outcome == SessionOutcome.ESCALATED_NUMBER_IN_USE
+    # A collision is immediate — it must NOT consume a retry attempt.
+    assert state.new_number_attempts == 0
+    assert not any(c.name == "update_phone_number" for c in api.calls)
+
+
+def test_new_number_success_after_one_bad_attempt():
+    state, api = _verified_state()
+    execute_tool("update_phone_number", {"new_number": "bad"}, state=state, api=api)
+    result = execute_tool(
+        "update_phone_number", {"new_number": "+19998887777"}, state=state, api=api
+    )
+    assert "changed" in result.lower()
+    assert state.outcome == SessionOutcome.NUMBER_CHANGED
+
+
+# --- Terminal sessions reject the new tools too -----------------------------
+
+
+def test_ended_session_rejects_look_up_account():
+    state, api = _fresh()
+    for bad in ["12345", "+442071234567", "+19990000000"]:
+        execute_tool("look_up_account", {"phone_number": bad}, state=state, api=api)
+    assert state.outcome.is_terminal
+
+    result = execute_tool(
+        "look_up_account", {"phone_number": VALID_PHONE}, state=state, api=api
+    )
+    assert result.startswith("BLOCKED")
+
+
+def test_resume_after_self_serve_failure_reopens_the_session():
+    state, api = _fresh()
+    execute_tool("redirect_to_self_serve", {}, state=state, api=api)
+    assert state.outcome.is_terminal
+
+    result = execute_tool(
+        "resume_after_self_serve_failure", {}, state=state, api=api
+    )
+    assert not result.startswith("BLOCKED")
+    assert state.outcome == SessionOutcome.IN_PROGRESS
+
+    # And the session is genuinely usable again afterward.
+    lookup = execute_tool(
+        "look_up_account", {"phone_number": VALID_PHONE}, state=state, api=api
+    )
+    assert "found account" in lookup.lower()
+
+
+def test_resume_after_self_serve_failure_rejected_without_a_prior_redirect():
+    state, api = _fresh()
+    result = execute_tool(
+        "resume_after_self_serve_failure", {}, state=state, api=api
+    )
+    assert result.startswith("BLOCKED")
+    assert state.outcome == SessionOutcome.IN_PROGRESS
+
+
+def test_ended_session_rejects_record_unclear_intent():
+    state, api = _fresh()
+    for _ in range(3):
+        execute_tool("record_unclear_intent", {}, state=state, api=api)
+    assert state.outcome.is_terminal
+
+    result = execute_tool("record_unclear_intent", {}, state=state, api=api)
+    assert result.startswith("BLOCKED")

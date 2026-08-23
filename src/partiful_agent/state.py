@@ -11,6 +11,7 @@ fully deterministic to unit-test.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -32,8 +33,12 @@ class SessionOutcome(str, Enum):
     NUMBER_CHANGED = "number_changed"  # ID verified, change committed
 
     # Terminal failure paths
-    LOCKED_VERIFICATION_FAILED = "locked_verification_failed"  # 3 strikes
+    LOCKED_VERIFICATION_FAILED = "locked_verification_failed"  # 3 ID strikes
     ESCALATED_NO_ID = "escalated_no_id"  # user has no ID to submit
+    ESCALATED_UNCLEAR_INTENT = "escalated_unclear_intent"  # 3 unclear replies
+    ESCALATED_PHONE_LOOKUP_FAILED = "escalated_phone_lookup_failed"  # 3 bad lookups
+    ESCALATED_NEW_NUMBER_FAILED = "escalated_new_number_failed"  # 3 bad new numbers
+    ESCALATED_NUMBER_IN_USE = "escalated_number_in_use"  # new number taken elsewhere
     TIMED_OUT = "timed_out"  # user went quiet
 
     @property
@@ -74,7 +79,18 @@ class SessionState:
     account: Account | None = None
     id_attempts_used: int = 0
     id_verified: bool = False
+    intent_clarification_attempts: int = 0
+    phone_lookup_attempts: int = 0
+    new_number_attempts: int = 0
     outcome: SessionOutcome = SessionOutcome.IN_PROGRESS
+
+    # Inactivity tracking. `last_activity_at` starts ticking the moment a
+    # session is created — a user who opens the chat and never says
+    # anything eventually gets timed out too, same as one who goes quiet
+    # mid-conversation. `still_there_prompted_at` is None until we've
+    # actually asked "are you still there?" and are waiting on a reply.
+    last_activity_at: float = field(default_factory=time.monotonic)
+    still_there_prompted_at: float | None = None
 
     # Names of the mock API calls made, in order. The test harness asserts
     # against this, and the UI renders it as a live action log.
@@ -85,6 +101,22 @@ class SessionState:
     @property
     def attempts_remaining(self) -> int:
         return max(0, config.MAX_ID_ATTEMPTS - self.id_attempts_used)
+
+    @property
+    def intent_clarification_attempts_remaining(self) -> int:
+        return max(
+            0,
+            config.MAX_INTENT_CLARIFICATION_ATTEMPTS
+            - self.intent_clarification_attempts,
+        )
+
+    @property
+    def phone_lookup_attempts_remaining(self) -> int:
+        return max(0, config.MAX_PHONE_LOOKUP_ATTEMPTS - self.phone_lookup_attempts)
+
+    @property
+    def new_number_attempts_remaining(self) -> int:
+        return max(0, config.MAX_NEW_NUMBER_ATTEMPTS - self.new_number_attempts)
 
     @property
     def is_account_identified(self) -> bool:
@@ -98,6 +130,19 @@ class SessionState:
     #
     # Each `require_*` method either returns cleanly or raises
     # GuardrailViolation. Tools call these *before* touching the backend.
+
+    def require_can_resume_after_self_serve_failure(self) -> None:
+        if self.outcome != SessionOutcome.SELF_SERVE_REDIRECT:
+            raise GuardrailViolation(
+                "Can only resume this way immediately after a self-serve "
+                "redirect — this session isn't in that state."
+            )
+
+    def require_session_open(self) -> None:
+        """Shared by the newer tools that don't have their own dedicated
+        guardrail: you can't do anything at all once a session has ended."""
+        if self.outcome.is_terminal:
+            raise GuardrailViolation("This session has already ended.")
 
     def require_can_verify_id(self) -> None:
         if self.outcome.is_terminal:
@@ -155,6 +200,41 @@ class SessionState:
         self.id_attempts_used += 1
         if passed:
             self.id_verified = True
+
+    def resume_after_self_serve_failure(self) -> None:
+        """Reopens a session that ended in a self-serve redirect, because
+        the user came back saying that redirect didn't actually work for
+        them. Only reachable via the guardrail above."""
+        self.outcome = SessionOutcome.IN_PROGRESS
+
+    def record_unclear_intent(self) -> None:
+        """Call each time a response still doesn't clarify what the user
+        needs. Caps out and ends the session after 3 unclear replies."""
+        self.intent_clarification_attempts += 1
+        if self.intent_clarification_attempts_remaining == 0:
+            self.outcome = SessionOutcome.ESCALATED_UNCLEAR_INTENT
+
+    def record_phone_lookup_attempt(self) -> None:
+        """Call when a phone number fails for ANY reason — bad format,
+        unsupported region, or not found. All count toward the same cap."""
+        self.phone_lookup_attempts += 1
+        if self.phone_lookup_attempts_remaining == 0:
+            self.outcome = SessionOutcome.ESCALATED_PHONE_LOOKUP_FAILED
+
+    def record_new_number_attempt(self) -> None:
+        """Call when a proposed new number fails format/region validation.
+        A collision with an existing account is a separate, immediate
+        terminal outcome — it does not consume one of these attempts."""
+        self.new_number_attempts += 1
+        if self.new_number_attempts_remaining == 0:
+            self.outcome = SessionOutcome.ESCALATED_NEW_NUMBER_FAILED
+
+    def record_activity(self) -> None:
+        """Call whenever a real user message arrives. Resets the inactivity
+        clock and resolves any pending "are you still there?" check-in —
+        any reply at all counts as presence, not just a literal "yes"."""
+        self.last_activity_at = time.monotonic()
+        self.still_there_prompted_at = None
 
     def lock_account(self) -> None:
         if self.account is not None:
