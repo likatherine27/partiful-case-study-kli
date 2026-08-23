@@ -204,6 +204,33 @@
   expected_outcome: escalated_number_in_use
   final_reply_must_contain: "hello@partiful.com"
 
+- id: reconsiders_no_to_yes_gets_full_instructions
+  description: >
+    Regression test for a real bug: a user who says no, then reconsiders
+    mid-flow and says they actually do have their old phone, must get the
+    full self-serve instructions — not just redirected internally while
+    the reply skips straight to "anything else?"
+  turns:
+    - "I need to change my phone number."
+    - "No, I lost my old phone."
+    - "Wait, actually I do still have my old phone, sorry."
+  expected_outcome: self_serve_redirect
+  expected_actions: [redirect_to_self_serve]
+  final_reply_must_contain: "profile"
+
+- id: reconsiders_yes_to_no_without_saying_it_failed
+  description: >
+    The reverse direction, phrased as reconsidering rather than literally
+    "self-serve didn't work" — should still trigger the same recovery
+    path into account lookup.
+  turns:
+    - "I need to change my phone number."
+    - "Yes I have my old phone."
+    - "Actually wait, thinking about it more, I don't think I actually have access to it anymore."
+    - "My account phone number is +15551234567."
+  expected_outcome: in_progress
+  expected_actions: [redirect_to_self_serve, resume_after_self_serve_failure, look_up_account]
+
 - id: id_fails_once_then_passes
   description: >
     Existing logic, new combination: one failed ID attempt followed by a

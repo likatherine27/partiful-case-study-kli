@@ -256,8 +256,13 @@ def _redirect_to_self_serve(state: SessionState, api: MockPartifulAPI) -> str:
 
     state.outcome = SessionOutcome.SELF_SERVE_REDIRECT
     return (
-        "Recorded: user will self-serve. Tell them to log in and change it "
-        f"from their profile page: {config.SELF_SERVE_HELP_URL}"
+        "Recorded. Your very next reply MUST include these self-serve "
+        "instructions, not just an acknowledgment — log into Partiful, go "
+        "to your profile page, verify your old number with a text code, "
+        f"then set the new number. Reference: {config.SELF_SERVE_HELP_URL} "
+        "Do not skip straight to asking if there's anything else without "
+        "including these instructions first, even if you already mentioned "
+        "this earlier in the conversation."
     )
 
 
