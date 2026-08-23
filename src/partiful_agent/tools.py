@@ -35,6 +35,28 @@ _SUPPORTED_PHONE_RE = re.compile(
 _INTERNATIONAL_LOOKING_RE = re.compile(r"^\+\d{8,15}$")
 
 
+def _normalize_phone(raw: str) -> str:
+    """Cleans up whatever Claude passes before validation, rather than
+    relying on the model to have already reformatted it correctly.
+
+    Strips spaces/dashes/parens, and assumes a bare number with no country
+    code (10 digits, or 11 starting with the supported code) belongs to
+    the one supported region — the same assumption a human agent would
+    reasonably make, made explicit in code instead of left to the model's
+    judgment on a given turn.
+    """
+    cleaned = re.sub(r"[^\d+]", "", raw)
+    if cleaned.startswith("+"):
+        return cleaned
+
+    country_code_digits = config.SUPPORTED_COUNTRY_CODE.lstrip("+")
+    if len(cleaned) == 10:
+        return "+" + country_code_digits + cleaned
+    if len(cleaned) == 11 and cleaned.startswith(country_code_digits):
+        return "+" + cleaned
+    return "+" + cleaned
+
+
 def _invalid_phone_reason(number: str) -> str | None:
     """None if the number is valid and in a supported region; otherwise a
     human-readable reason it was rejected."""
@@ -203,6 +225,7 @@ def _look_up_account(
     except GuardrailViolation as exc:
         return f"BLOCKED: {exc}"
 
+    phone_number = _normalize_phone(phone_number)
     reason = _invalid_phone_reason(phone_number)
     if reason is None:
         account = api.look_up_account(phone_number)
@@ -277,6 +300,7 @@ def _update_phone_number(
     except GuardrailViolation as exc:
         return f"BLOCKED: {exc}"
 
+    new_number = _normalize_phone(new_number)
     reason = _invalid_phone_reason(new_number)
     if reason is None:
         # Reuse the same lookup the account-search step uses: if some OTHER

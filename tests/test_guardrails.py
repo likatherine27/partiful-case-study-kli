@@ -144,6 +144,27 @@ def test_unclear_intent_escalates_after_three_attempts():
     assert state.outcome == SessionOutcome.ESCALATED_UNCLEAR_INTENT
 
 
+# --- Phone number normalization (not left to Claude's judgment) ------------
+
+
+def test_bare_ten_digit_number_is_assumed_supported_region():
+    state, api = _fresh()
+    result = execute_tool(
+        "look_up_account", {"phone_number": "9088093599"}, state=state, api=api
+    )
+    assert "found account" in result.lower()
+
+
+def test_punctuated_number_is_normalized_before_validation():
+    state, api = _fresh()
+    for raw in ["908-809-3599", "(908) 809-3599", "19088093599"]:
+        state, api = _fresh()
+        result = execute_tool(
+            "look_up_account", {"phone_number": raw}, state=state, api=api
+        )
+        assert "found account" in result.lower(), f"failed for input {raw!r}"
+
+
 # --- Phone number validation (account lookup) -------------------------------
 
 

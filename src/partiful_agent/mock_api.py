@@ -50,6 +50,16 @@ _SEED_ACCOUNTS: dict[str, Account] = {
         legal_name="Sam Chen",
         phone_number="+15559876543",
     ),
+    "+19088093599": Account(
+        account_id="acct_003",
+        legal_name="Katherine Li",
+        phone_number="+19088093599",
+    ),
+    "+11234567890": Account(
+        account_id="acct_004",
+        legal_name="Sample User",
+        phone_number="+11234567890",
+    ),
 }
 
 # --- Deterministic ID-verification stub ------------------------------------
