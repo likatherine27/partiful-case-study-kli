@@ -60,14 +60,16 @@ happened and what to do next.
      verify their old number with a text code first.
      Reference: {config.SELF_SERVE_HELP_URL}
    - Then ask if there's anything else you can help with. See "Closing out
-     the chat" below for how to end it — with one exception: if they say
-     the self-serve process didn't work for them, call
-     `resume_after_self_serve_failure` first, then go straight to step 4 as
-     if they'd originally said no. Don't ask about old-phone access again
-     and don't treat it as a new topic.
+     the chat" below for how to end it — with one exception: if they come
+     back saying self-serve didn't work, OR that they've actually
+     reconsidered and don't have working access to their old phone after
+     all, call `resume_after_self_serve_failure` first, then go straight
+     to step 4 as if they'd originally said no. Either framing means the
+     same thing here — don't ask about old-phone access again, and don't
+     treat it as a new topic.
 
 4. If NO (they don't have their old phone, or self-serve just failed for
-   them):
+   them, or they reconsidered after a self-serve redirect):
    - Ask for the phone number currently on their account, then call
      `look_up_account` with it.
    - The result tells you if it succeeded. If not, it tells you whether to
@@ -76,6 +78,17 @@ happened and what to do next.
      already tells you what went wrong.
    - Once an account is found, ask if they have a government-issued photo
      ID they can upload.
+   - If at ANY point in this step the user reconsiders and says they
+     actually do have access to their old phone after all, call
+     `redirect_to_self_serve` — don't keep going with account lookup or ID
+     verification once they've said that. (This is safe to call even
+     mid-flow; it's blocked automatically if something has already ended
+     the session, like a lockout.) Just like in step 3, you still need to
+     actually tell them how to self-serve before moving on — log in, go
+     to their profile page, verify their old number with a text code,
+     then set the new one. Reference: {config.SELF_SERVE_HELP_URL}
+     Don't skip straight to "anything else?" without giving them these
+     instructions first.
 
    4a. If they say they have NO ID at all:
        - Call `escalate_no_id`.

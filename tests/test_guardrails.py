@@ -277,6 +277,23 @@ def test_ended_session_rejects_look_up_account():
     assert result.startswith("BLOCKED")
 
 
+def test_locked_account_cannot_be_redirected_to_self_serve():
+    """Regression test: a session already ended (e.g. locked after 3
+    failed ID attempts) must not be escapable by calling
+    redirect_to_self_serve — found as a real gap, not hypothetical."""
+    state, api = _fresh()
+    execute_tool("look_up_account", {"phone_number": OTHER_PHONE}, state=state, api=api)
+    for bad_id in ["blurry_id.jpg", "expired_id.jpg", "mismatch_id.jpg"]:
+        execute_tool("verify_id", {"image_ref": bad_id}, state=state, api=api)
+    assert state.outcome == SessionOutcome.LOCKED_VERIFICATION_FAILED
+
+    result = execute_tool("redirect_to_self_serve", {}, state=state, api=api)
+
+    assert result.startswith("BLOCKED")
+    assert state.outcome == SessionOutcome.LOCKED_VERIFICATION_FAILED
+    assert state.account.locked is True
+
+
 def test_resume_after_self_serve_failure_reopens_the_session():
     state, api = _fresh()
     execute_tool("redirect_to_self_serve", {}, state=state, api=api)

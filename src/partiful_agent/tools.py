@@ -249,6 +249,11 @@ def _look_up_account(
 
 
 def _redirect_to_self_serve(state: SessionState, api: MockPartifulAPI) -> str:
+    try:
+        state.require_session_open()
+    except GuardrailViolation as exc:
+        return f"BLOCKED: {exc}"
+
     state.outcome = SessionOutcome.SELF_SERVE_REDIRECT
     return (
         "Recorded: user will self-serve. Tell them to log in and change it "
