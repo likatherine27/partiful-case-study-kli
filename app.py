@@ -22,6 +22,7 @@ import sys
 from pathlib import Path
 
 import streamlit as st
+from PIL import Image, ImageDraw, ImageFont
 from streamlit_autorefresh import st_autorefresh
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -53,10 +54,36 @@ def _html(markup: str) -> str:
     )
 
 
-# The assistant's avatar — a party-popper emoji (matching the reference
-# icon Katherine shared), passed as Streamlit's native `avatar=` argument
-# rather than a hand-drawn SVG hack; see ASSISTANT_AVATAR usage below.
-ASSISTANT_AVATAR = "\U0001F389"  # 🎉
+def _letter_avatar(letter: str, bg: str, fg: str, size: int = 96) -> Image.Image:
+    """Renders a small square image with one bold centered letter.
+
+    st.chat_message's avatar= only accepts None, "user"/"assistant", a
+    real emoji, or an actual image — a plain string like "P" gets
+    treated as a file path and throws (confirmed the hard way). A
+    generated image sidesteps that entirely and bakes the exact colors
+    in directly, no CSS targeting of Streamlit's internal markup needed.
+    """
+    img = Image.new("RGB", (size, size), bg)
+    draw = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype(
+            "/System/Library/Fonts/Supplemental/Arial Bold.ttf", int(size * 0.5)
+        )
+    except OSError:
+        font = ImageFont.load_default()
+    bbox = draw.textbbox((0, 0), letter, font=font)
+    w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    draw.text(
+        ((size - w) / 2 - bbox[0], (size - h) / 2 - bbox[1]),
+        letter,
+        font=font,
+        fill=fg,
+    )
+    return img
+
+
+# Same style as the user avatar: light grey background, darker grey mark.
+ASSISTANT_AVATAR = _letter_avatar("P", bg="#D7D6DC", fg="#55535E")
 
 _STYLE = """
 <style>
@@ -110,14 +137,16 @@ h1 {
 }
 [data-testid="stChatMessage"] {
     background: transparent !important;
-    align-items: center !important;
+    /* Top-align the avatar with the FIRST line, not the vertical middle
+       of the whole block — matters once a message wraps to 2+ lines. */
+    align-items: flex-start !important;
 }
 [data-testid="stChatMessageContent"] p {
     margin: 0;
     font-size: 15px;
     line-height: 1.5;
 }
-/* User row: icon on the right, bubble height matched to the chat input */
+/* User row: icon on the right */
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
     flex-direction: row-reverse;
     justify-content: flex-end;
@@ -126,17 +155,18 @@ h1 {
     background: var(--pf-overlay);
     border: 1px solid var(--pf-overlay-border);
     border-radius: 16px;
-    min-height: 60px;
-    display: flex;
-    align-items: center;
-    padding: 0 18px;
+    max-width: 68%;
+    /* Padding (not a fixed/min height) so the bubble is naturally
+       centered around single-line text AND grows with multi-line text
+       instead of clipping it — a fixed height fights wrapped content. */
+    padding: 19px 18px;
     color: var(--pf-text);
 }
-/* Assistant row: icon on the left (Streamlit's default order) */
-[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) {
-    justify-content: flex-start;
-}
-[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] {
+/* Assistant row. A custom avatar string (see ASSISTANT_AVATAR) gets NO
+   data-testid at all — Streamlit only adds stChatMessageAvatarAssistant
+   for its own built-in icon — so it's targeted structurally below by
+   "the first child that isn't the user avatar" instead. */
+[data-testid="stChatMessage"]:has(> div:first-child:not([data-testid="stChatMessageAvatarUser"])) [data-testid="stChatMessageContent"] {
     background: transparent;
     border: none;
     padding: 6px 0;
@@ -145,6 +175,20 @@ h1 {
 [data-testid="stChatMessageAvatarUser"] {
     background: #D7D6DC !important;
     color: #55535E !important;
+}
+[data-testid="stChatMessage"] > div:first-child:not([data-testid="stChatMessageAvatarUser"]) {
+    background: #D7D6DC !important;
+    color: #55535E !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+}
+[data-testid="stChatInputSubmitButton"]:not(:disabled) {
+    background-color: #D7D6DC !important;
+}
+[data-testid="stChatInputSubmitButton"]:not(:disabled) svg {
+    fill: #55535E !important;
 }
 </style>
 """
