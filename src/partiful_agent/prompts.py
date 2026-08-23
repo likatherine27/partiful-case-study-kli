@@ -65,10 +65,9 @@ happened and what to do next.
          automated changes, and a warning text has already been sent to the
          number on file. Tell the user this clearly and seriously — this is
          the most important message in the whole flow to get right. Then
-         ask if they'd like to leave a message (and their email) for the
-         support team, and if they do, call `submit_support_message` with
-         it. If they don't want to leave a message, that's fine — end the
-         conversation.
+         tell them to email {config.SUPPORT_EMAIL} themselves if they'd
+         like a person to review it. Do not offer to send anything on
+         their behalf — end the conversation once you've told them this.
 
 # Rules that apply throughout
 
