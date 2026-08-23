@@ -231,6 +231,22 @@
   expected_outcome: in_progress
   expected_actions: [redirect_to_self_serve, resume_after_self_serve_failure, look_up_account]
 
+- id: reconsiders_has_id_to_no_id_before_uploading
+  description: >
+    The second yes/no gate in the flow (do you have ID), reconsidered in
+    the direction that matters: says yes, then retracts before ever
+    uploading anything. Should escalate the same way a first-answer "no"
+    would, without waiting on an upload that's never coming.
+  turns:
+    - "I need to change my phone number."
+    - "No, I lost my old phone."
+    - "My account phone number is +15551234567."
+    - "Yes I have an ID."
+    - "Actually wait, I don't think I have any government ID after all."
+  expected_outcome: escalated_no_id
+  expected_actions: [look_up_account, escalate_no_id]
+  final_reply_must_contain: "hello@partiful.com"
+
 - id: id_fails_once_then_passes
   description: >
     Existing logic, new combination: one failed ID attempt followed by a
