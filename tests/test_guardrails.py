@@ -294,6 +294,53 @@ def test_locked_account_cannot_be_redirected_to_self_serve():
     assert state.account.locked is True
 
 
+def test_retry_counters_survive_a_self_serve_flip_flop():
+    """A user who fails 2 ID attempts, then flips to self-serve and back,
+    must not get a fresh 3 attempts — the counter belongs to the session,
+    not to whichever branch of the flow they're currently in."""
+    state, api = _fresh()
+    execute_tool("look_up_account", {"phone_number": VALID_PHONE}, state=state, api=api)
+    execute_tool("verify_id", {"image_ref": "blurry_id.jpg"}, state=state, api=api)
+    execute_tool("verify_id", {"image_ref": "expired_id.jpg"}, state=state, api=api)
+    assert state.attempts_remaining == 1
+
+    execute_tool("redirect_to_self_serve", {}, state=state, api=api)
+    execute_tool("resume_after_self_serve_failure", {}, state=state, api=api)
+    assert state.attempts_remaining == 1  # unchanged by the flip-flop
+
+    result = execute_tool(
+        "verify_id", {"image_ref": "mismatch_id.jpg"}, state=state, api=api
+    )
+    assert "0 attempts remaining" in result
+    assert state.outcome == SessionOutcome.LOCKED_VERIFICATION_FAILED
+
+
+def test_every_state_changing_tool_is_blocked_once_locked():
+    """Exhaustive version of the redirect_to_self_serve regression test —
+    checks every tool that can mutate session state, not just the one
+    that happened to be reported."""
+    state, api = _fresh()
+    execute_tool("look_up_account", {"phone_number": VALID_PHONE}, state=state, api=api)
+    for bad_id in ["blurry_id.jpg", "expired_id.jpg", "mismatch_id.jpg"]:
+        execute_tool("verify_id", {"image_ref": bad_id}, state=state, api=api)
+    assert state.outcome == SessionOutcome.LOCKED_VERIFICATION_FAILED
+
+    attempts = [
+        ("redirect_to_self_serve", {}),
+        ("resume_after_self_serve_failure", {}),
+        ("escalate_no_id", {}),
+        ("verify_id", {"image_ref": "valid_id.jpg"}),
+        ("update_phone_number", {"new_number": "+19998887777"}),
+        ("look_up_account", {"phone_number": OTHER_PHONE}),
+        ("record_unclear_intent", {}),
+    ]
+    for tool_name, args in attempts:
+        result = execute_tool(tool_name, args, state=state, api=api)
+        assert result.startswith("BLOCKED"), f"{tool_name} was not blocked"
+
+    assert state.outcome == SessionOutcome.LOCKED_VERIFICATION_FAILED
+
+
 def test_resume_after_self_serve_failure_reopens_the_session():
     state, api = _fresh()
     execute_tool("redirect_to_self_serve", {}, state=state, api=api)

@@ -346,6 +346,11 @@ def _update_phone_number(
 
 
 def _escalate_no_id(state: SessionState, api: MockPartifulAPI) -> str:
+    try:
+        state.require_session_open()
+    except GuardrailViolation as exc:
+        return f"BLOCKED: {exc}"
+
     state.outcome = SessionOutcome.ESCALATED_NO_ID
     return (
         f"Recorded: user has no ID. Tell them to email {config.SUPPORT_EMAIL} "
