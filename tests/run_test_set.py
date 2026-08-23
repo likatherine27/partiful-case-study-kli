@@ -42,10 +42,21 @@ def _check(condition: bool, message: str) -> None:
         raise CaseFailure(message)
 
 
-def run_case(case: dict, *, verbose: bool) -> None:
+def run_case(case: dict, *, verbose: bool) -> Agent:
     agent = Agent()
     replies: list[str] = []
 
+    try:
+        _run_case_body(agent, case, replies, verbose=verbose)
+    except CaseFailure as exc:
+        # A failed case still made real API calls — attach the agent so
+        # its cost still gets counted in the run total.
+        exc.agent = agent
+        raise
+    return agent
+
+
+def _run_case_body(agent: Agent, case: dict, replies: list[str], *, verbose: bool) -> None:
     for turn in case["turns"]:
         if verbose:
             print(f"    >>> {turn}")
@@ -96,6 +107,8 @@ def run_case(case: dict, *, verbose: bool) -> None:
                 f"first reply must not contain '{forbidden}', got: {replies[0]!r}",
             )
 
+    return agent
+
 
 def main() -> int:
     args = sys.argv[1:]
@@ -110,20 +123,24 @@ def main() -> int:
             print(f"Unknown case id(s), skipping: {', '.join(sorted(missing))}")
 
     passed, failed = 0, 0
+    total_cost = 0.0
     for case in cases:
         label = case["id"]
         print(f"\n[{label}] {case.get('description', '').strip()}")
         try:
-            run_case(case, verbose=verbose)
+            agent = run_case(case, verbose=verbose)
         except CaseFailure as exc:
             print(f"  FAIL — {exc}")
             failed += 1
+            total_cost += getattr(exc, "agent", None) and exc.agent.estimated_cost_usd() or 0.0
         else:
             print("  PASS")
             passed += 1
+            total_cost += agent.estimated_cost_usd()
 
     total = passed + failed
     print(f"\n{'=' * 50}\n{passed}/{total} passed")
+    print(f"Real cost of this run: ${total_cost:.4f}")
     return 1 if failed else 0
 
 

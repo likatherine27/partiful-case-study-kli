@@ -42,6 +42,29 @@ class Agent:
         # The running transcript, in the shape Claude's API expects: a list
         # of {"role": ..., "content": ...} dicts, alternating user/assistant.
         self.messages: list[dict] = []
+        # Raw token counts across every real API call this Agent has made.
+        # Used only to report actual spend (see run_test_set.py) — this is
+        # a development-cost visibility tool, not something end users see.
+        self.usage = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+        }
+
+    def estimated_cost_usd(self) -> float:
+        """Real spend for this Agent's calls so far, from accumulated
+        token counts and config's pricing constants — not an estimate of
+        token count, an estimate of dollars from exact token counts."""
+        u = self.usage
+        return (
+            u["input_tokens"] * config.PRICE_PER_MILLION_INPUT_TOKENS
+            + u["output_tokens"] * config.PRICE_PER_MILLION_OUTPUT_TOKENS
+            + u["cache_creation_input_tokens"]
+            * config.PRICE_PER_MILLION_CACHE_WRITE_TOKENS
+            + u["cache_read_input_tokens"]
+            * config.PRICE_PER_MILLION_CACHE_READ_TOKENS
+        ) / 1_000_000
 
     def send_user_message(self, text: str) -> str:
         """Send one user turn and return Claude's eventual text reply.
@@ -110,6 +133,14 @@ class Agent:
                 ],
                 tools=TOOL_SCHEMAS,
                 messages=self.messages,
+            )
+            self.usage["input_tokens"] += response.usage.input_tokens
+            self.usage["output_tokens"] += response.usage.output_tokens
+            self.usage["cache_creation_input_tokens"] += (
+                response.usage.cache_creation_input_tokens or 0
+            )
+            self.usage["cache_read_input_tokens"] += (
+                response.usage.cache_read_input_tokens or 0
             )
             self.messages.append({"role": "assistant", "content": response.content})
 

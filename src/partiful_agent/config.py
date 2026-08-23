@@ -18,6 +18,14 @@ MAX_TOKENS = 1024
 # the model looping on tool calls indefinitely and never responding.
 MAX_TOOL_ITERATIONS = 8
 
+# Sonnet 5 standard pricing, per million tokens (2026-08). Used only to
+# report real spend in tests/run_test_set.py — never shown to end users,
+# this is a development-cost visibility tool, not a product feature.
+PRICE_PER_MILLION_INPUT_TOKENS = 3.00
+PRICE_PER_MILLION_OUTPUT_TOKENS = 15.00
+PRICE_PER_MILLION_CACHE_WRITE_TOKENS = 3.75  # 1.25x input price
+PRICE_PER_MILLION_CACHE_READ_TOKENS = 0.30  # 0.1x input price
+
 
 # --- Policy: ID verification ----------------------------------------------
 
