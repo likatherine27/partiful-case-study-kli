@@ -231,6 +231,23 @@ def test_malformed_phone_number_is_rejected_without_hitting_backend():
     assert api.calls == []  # never reached the mock backend
 
 
+def test_seven_digit_local_only_number_is_rejected():
+    # Regression test: phonenumbers.is_possible_number() (the looser
+    # boolean check) treats a bare 7-digit NANP number as "possible" —
+    # it's a legacy local-dialing length (no area code), not a complete
+    # number, and must not be accepted just because is_possible_number()
+    # is lenient about it. Caught this exact case getting through
+    # update_phone_number in production; covering the lookup side too
+    # since both paths share this same validation function.
+    state, api = _fresh()
+    result = execute_tool(
+        "look_up_account", {"phone_number": "9084398"}, state=state, api=api
+    )
+    assert "valid phone number" in result.lower()
+    assert state.phone_lookup_attempts == 1
+    assert api.calls == []  # never reached the mock backend
+
+
 def test_non_us_number_passes_format_validation_and_reaches_backend():
     # Regions outside the old US-only guardrail are no longer rejected
     # up front — a well-formed non-US number reaches the mock backend and
@@ -281,6 +298,20 @@ def test_malformed_new_number_is_rejected_and_does_not_commit():
     state, api = _verified_state()
     result = execute_tool(
         "update_phone_number", {"new_number": "not-a-number"}, state=state, api=api
+    )
+    assert "valid phone number" in result.lower()
+    assert state.new_number_attempts == 1
+    assert state.outcome == SessionOutcome.IN_PROGRESS
+    assert not any(c.name == "update_phone_number" for c in api.calls)
+
+
+def test_seven_digit_local_only_new_number_is_rejected():
+    # The exact bug reported in production: "+19084398" (a 7-digit NANP
+    # number with no area code) was accepted as a new number. See
+    # test_seven_digit_local_only_number_is_rejected for why.
+    state, api = _verified_state()
+    result = execute_tool(
+        "update_phone_number", {"new_number": "9084398"}, state=state, api=api
     )
     assert "valid phone number" in result.lower()
     assert state.new_number_attempts == 1

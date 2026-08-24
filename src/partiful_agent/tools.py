@@ -63,13 +63,21 @@ def _invalid_phone_reason(number: str) -> str | None:
     region (any region — this chat is no longer US-only); otherwise a
     human-readable reason it was rejected.
 
-    Uses is_possible_number rather than is_valid_number: it checks the
-    number is the right shape (length, country code) for its region
-    without requiring it to fall in a carrier-assigned range, which would
-    reject this project's fake test numbers along with real typos.
+    Checks for exactly IS_POSSIBLE rather than the looser is_possible_number
+    boolean: it checks the number is the right shape (length, country code)
+    for its region without requiring it to fall in a carrier-assigned
+    range, which would reject this project's fake test numbers along with
+    real typos — but is_possible_number() also accepts
+    IS_POSSIBLE_LOCAL_ONLY, a legacy 7-digit-no-area-code NANP length from
+    back when you could dial a number in your own area code without it.
+    That's not a complete, globally-unique number — the same 7 digits
+    exist under every area code — so it must not pass here just because
+    it happens to be a technically "possible" length.
     """
     parsed = _parse_phone(number)
-    if parsed is not None and phonenumbers.is_possible_number(parsed):
+    if parsed is not None and phonenumbers.is_possible_number_with_reason(
+        parsed
+    ) == phonenumbers.ValidationResult.IS_POSSIBLE:
         return None
     return (
         "That doesn't look like a valid phone number. Make sure to "
