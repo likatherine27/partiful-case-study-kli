@@ -215,8 +215,8 @@ class SessionState:
             self.outcome = SessionOutcome.ESCALATED_UNCLEAR_INTENT
 
     def record_phone_lookup_attempt(self) -> None:
-        """Call when a phone number fails for ANY reason — bad format,
-        unsupported region, or not found. All count toward the same cap."""
+        """Call when a phone number fails for ANY reason — malformed, or
+        well-formed but not found. All count toward the same cap."""
         self.phone_lookup_attempts += 1
         if self.phone_lookup_attempts_remaining == 0:
             self.outcome = SessionOutcome.ESCALATED_PHONE_LOOKUP_FAILED

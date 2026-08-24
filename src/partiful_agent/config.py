@@ -44,17 +44,20 @@ MAX_ID_ATTEMPTS = 3
 # giving up on a user who keeps responding with something unclear.
 MAX_INTENT_CLARIFICATION_ATTEMPTS = 3
 
-# How many times a user can give a phone number that's malformed, in an
-# unsupported region, or not found before the agent gives up looking it up.
+# How many times a user can give a phone number that's malformed or not
+# found before the agent gives up looking it up.
 MAX_PHONE_LOOKUP_ATTEMPTS = 3
 
-# How many times a user can propose a new number that's malformed or in an
-# unsupported region before the agent gives up on the change.
+# How many times a user can propose a new number that's malformed before
+# the agent gives up on the change.
 MAX_NEW_NUMBER_ATTEMPTS = 3
 
-# This mock only supports US numbers. Documented assumption, not a real
-# carrier/region rule.
-SUPPORTED_COUNTRY_CODE = "+1"
+# Fallback region for numbers given without a country code (no leading
+# "+"). Partiful now operates in every region, so this is only a
+# convenience assumption for the ambiguous bare-digits case — a number
+# given WITH a country code is validated against whatever region it
+# actually specifies, not restricted to this one.
+DEFAULT_PHONE_REGION = "US"
 
 
 # --- Policy: session inactivity -------------------------------------------

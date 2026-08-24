@@ -20,57 +20,61 @@ from __future__ import annotations
 import re
 from typing import Callable
 
+import phonenumbers
+
 from . import config
 from .mock_api import MockPartifulAPI
 from .state import GuardrailViolation, SessionOutcome, SessionState
 
-# Supported numbers in E.164 form: the configured country code followed by
-# 10 digits. Anything that still looks like a real international number
-# gets a distinct "wrong region" message; anything else is "not a valid
-# format" — both count toward the same retry limit, just with different
-# wording so the user knows what to fix.
-_SUPPORTED_PHONE_RE = re.compile(
-    r"^\+" + re.escape(config.SUPPORTED_COUNTRY_CODE.lstrip("+")) + r"\d{10}$"
-)
-_INTERNATIONAL_LOOKING_RE = re.compile(r"^\+\d{8,15}$")
+
+def _parse_phone(raw: str) -> phonenumbers.PhoneNumber | None:
+    """Parses whatever Claude passes, rather than relying on the model to
+    have already reformatted it correctly.
+
+    A number WITH a leading "+" carries its own country code — calling
+    codes are prefix-free, so that's enough to place it unambiguously in
+    any region, with no guessing involved. A bare number with no "+" gives
+    no such signal (a 10-digit string is a plausible national number in
+    many different countries), so it's parsed against
+    config.DEFAULT_PHONE_REGION as a convenience assumption — the same
+    guess a human agent would reasonably make for the common case, made
+    explicit in code instead of left to the model's judgment on a given
+    turn.
+    """
+    cleaned = re.sub(r"[^\d+]", "", raw)
+    region = None if cleaned.startswith("+") else config.DEFAULT_PHONE_REGION
+    try:
+        return phonenumbers.parse(cleaned, region)
+    except phonenumbers.NumberParseException:
+        return None
 
 
 def _normalize_phone(raw: str) -> str:
-    """Cleans up whatever Claude passes before validation, rather than
-    relying on the model to have already reformatted it correctly.
-
-    Strips spaces/dashes/parens, and assumes a bare number with no country
-    code (10 digits, or 11 starting with the supported code) belongs to
-    the one supported region — the same assumption a human agent would
-    reasonably make, made explicit in code instead of left to the model's
-    judgment on a given turn.
-    """
-    cleaned = re.sub(r"[^\d+]", "", raw)
-    if cleaned.startswith("+"):
-        return cleaned
-
-    country_code_digits = config.SUPPORTED_COUNTRY_CODE.lstrip("+")
-    if len(cleaned) == 10:
-        return "+" + country_code_digits + cleaned
-    if len(cleaned) == 11 and cleaned.startswith(country_code_digits):
-        return "+" + cleaned
-    return "+" + cleaned
+    """Returns the E.164 form when the number parses; otherwise returns the
+    cleaned-up input as-is so validation still has something to reject."""
+    parsed = _parse_phone(raw)
+    if parsed is None:
+        return re.sub(r"[^\d+]", "", raw)
+    return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
 
 
 def _invalid_phone_reason(number: str) -> str | None:
-    """None if the number is valid and in a supported region; otherwise a
-    human-readable reason it was rejected."""
-    if _SUPPORTED_PHONE_RE.match(number):
+    """None if the number is a structurally valid phone number for its
+    region (any region — this chat is no longer US-only); otherwise a
+    human-readable reason it was rejected.
+
+    Uses is_possible_number rather than is_valid_number: it checks the
+    number is the right shape (length, country code) for its region
+    without requiring it to fall in a carrier-assigned range, which would
+    reject this project's fake test numbers along with real typos.
+    """
+    parsed = _parse_phone(number)
+    if parsed is not None and phonenumbers.is_possible_number(parsed):
         return None
-    if _INTERNATIONAL_LOOKING_RE.match(number):
-        return (
-            "That number appears to be outside a supported region — this "
-            f"chat currently only supports {config.SUPPORTED_COUNTRY_CODE} "
-            "phone numbers."
-        )
     return (
-        "That doesn't look like a valid phone number format "
-        f"({config.SUPPORTED_COUNTRY_CODE} followed by 10 digits)."
+        "That doesn't look like a valid phone number. Make sure to "
+        "include the country code (e.g. +1 for a US number, +44 for the "
+        "UK)."
     )
 
 # ---- Schemas: what Claude sees ---------------------------------------------

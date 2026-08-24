@@ -4,4 +4,5 @@ streamlit-autorefresh>=1.0.1  # periodic rerun so inactivity timeout can fire wi
 python-dotenv>=1.0.0   # loads the API key from .env so it never lands in source
 PyYAML>=6.0            # reads the test set from tests/test_cases.yaml
 pytest>=8.0.0          # unit tests for the guardrails
+phonenumbers>=8.13.0    # real per-region phone number parsing/validation (libphonenumber port)
 Pillow>=10.0.0          # generates the assistant's avatar image in app.py, and regenerates assets/*.jpg via generate_sample_ids.py

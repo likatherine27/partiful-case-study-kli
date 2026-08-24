@@ -178,12 +178,17 @@ def test_malformed_phone_number_is_rejected_without_hitting_backend():
     assert api.calls == []  # never reached the mock backend
 
 
-def test_non_us_phone_number_is_rejected_as_unsupported_region():
+def test_non_us_number_passes_format_validation_and_reaches_backend():
+    # Regions outside the old US-only guardrail are no longer rejected
+    # up front — a well-formed non-US number reaches the mock backend and
+    # fails there (no matching account) rather than being turned away for
+    # its region.
     state, api = _fresh()
     result = execute_tool(
         "look_up_account", {"phone_number": "+442071234567"}, state=state, api=api
     )
-    assert "outside a supported region" in result.lower()
+    assert "no account found" in result.lower()
+    assert any(c.name == "look_up_account" for c in api.calls)
     assert state.phone_lookup_attempts == 1
 
 
@@ -232,7 +237,7 @@ def test_malformed_new_number_is_rejected_and_does_not_commit():
 
 def test_three_failed_new_numbers_escalates_and_stops():
     state, api = _verified_state()
-    for bad in ["nope", "+442071234567", "still-bad"]:
+    for bad in ["nope", "+44207", "still-bad"]:
         result = execute_tool(
             "update_phone_number", {"new_number": bad}, state=state, api=api
         )

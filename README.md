@@ -119,7 +119,10 @@ case that tries to talk the agent into skipping verification outright.
 Notable assumptions made to keep this a buildable MVP (full rationale in
 the scoping document):
 
-- Only US (`+1`) numbers are supported by the mock lookup/verification.
+- Phone numbers are validated for any region (via `phonenumbers`/libphonenumber),
+  not just US (`+1`) — but the mock account directory itself only seeds US
+  numbers, so a non-US lookup will format-validate and then correctly find
+  no account.
 - ID verification is a deterministic stub keyed off the uploaded file's
   name, standing in for a real vendor (e.g. Persona, Stripe Identity).
 - Internal API calls are printed, not executed, per the assignment.

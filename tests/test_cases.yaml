@@ -149,8 +149,8 @@
 
 - id: phone_lookup_exhausted
   description: >
-    New logic: three bad account-lookup attempts in a row (mixing a bad
-    format, an unsupported region, and a not-found number) escalates.
+    New logic: three bad account-lookup attempts in a row (a malformed
+    number and two well-formed but not-found numbers, one non-US) escalates.
   turns:
     - "I need to change my phone number."
     - "No, I lost my old phone."
@@ -185,7 +185,7 @@
     - "My account phone number is +15551234567."
     - "[Uploaded ID photo: valid_id.jpg]"
     - "Change it to 111"
-    - "Change it to +442071234567"
+    - "Change it to +44207"
     - "Change it to still-not-valid"
   expected_outcome: escalated_new_number_failed
   final_reply_must_contain: "hello@partiful.com"
