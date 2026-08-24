@@ -31,6 +31,11 @@ system:
    to the terminal as `[API CALL] ...` and logged to `state.actions_taken`,
    which the test suite asserts against to verify the right sequence of
    actions ran.
+5. Nothing should leave the user with no reply at all. If the Claude API
+   call itself fails (network blip, rate limit) or a tool call comes back
+   malformed, `agent.py` degrades to a friendly "could you try again?"
+   instead of crashing the session or going silent — see
+   `test_agent_resilience.py`.
 
 ```
 app.py                        Streamlit chat UI (rendering only, no business logic)
@@ -67,6 +72,14 @@ model says:
   immediately rather than being treated as a retryable typo.
 - A quiet user gets a check-in after 15 minutes and the session closes
   after 5 more minutes of silence.
+- Any response containing digits is always run through the real phone-
+  number validation tool, never judged by the model itself — so a
+  malformed attempt always counts toward the 3-attempt limit instead of
+  silently not counting.
+- The chat input retires and "Start a new chat" appears the moment
+  nothing more should be said — an escalation, a lockout, a timeout, or a
+  completed number change (this flow doesn't support a second request).
+  See `SessionState.chat_has_ended`.
 
 ## Running the agent
 

@@ -264,6 +264,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
 @st.fragment(run_every=60)
 def _poll_inactivity() -> None:
     """Ticks independently of the rest of the app so "are you still
