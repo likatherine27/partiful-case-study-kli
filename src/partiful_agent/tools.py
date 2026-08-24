@@ -316,9 +316,9 @@ def _verify_id(
             f"Verification FAILED ({result.reason}). 0 attempts remaining — "
             "that was the last try. The account is now LOCKED from further "
             "automated changes, and a warning text has been sent to the "
-            "number on file. Tell the user this plainly and seriously, and "
-            f"that they can email {config.SUPPORT_EMAIL} themselves if they "
-            "want a person to review it."
+            "number on file. Tell the user plainly that verification failed "
+            f"and they can email {config.SUPPORT_EMAIL} if they want a "
+            "person to review it."
         )
 
     return (

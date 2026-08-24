@@ -7,7 +7,7 @@ as little human involvement as possible.
 
 Background on the manual process this replaces is in
 [docs/brief.md](docs/brief.md). Full scoping rationale, and what's
-deliberately out of scope for this version, is in the **[scoping doc](https://docs.google.com/document/d/1IyH35stH8aZunloDUODHVpDqJWdmLKg4IevVmgf7ssI/edit?tab=t.i96r97potq5x#heading=h.jv5pwdiiid4y)**.
+deliberately out of scope for this version, is in the **[scoping doc](https://docs.google.com/document/d/1IyH35stH8aZunloDUODHVpDqJWdmLKg4IevVmgf7ssI/edit?tab=t.0#heading=h.3f1c4oblsxqg)**.
 
 ## How it works
 
