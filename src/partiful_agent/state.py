@@ -45,6 +45,29 @@ class SessionOutcome(str, Enum):
     def is_terminal(self) -> bool:
         return self is not SessionOutcome.IN_PROGRESS
 
+    @property
+    def ends_chat(self) -> bool:
+        """True for outcomes where no further reply is expected at all.
+
+        Narrower than `is_terminal`: the two happy-path outcomes
+        (SELF_SERVE_REDIRECT, NUMBER_CHANGED) are terminal for guardrail
+        purposes — direct tool calls are blocked — but the flow still
+        expects an "anything else?" exchange before the chat actually
+        closes. The outcomes here are the ones prompts.py calls "stop and
+        escalate" / "end the conversation": there is nothing left to say
+        beyond the support-email instruction, so the UI can safely retire
+        the input the moment one of these is reached.
+        """
+        return self in {
+            SessionOutcome.LOCKED_VERIFICATION_FAILED,
+            SessionOutcome.ESCALATED_NO_ID,
+            SessionOutcome.ESCALATED_UNCLEAR_INTENT,
+            SessionOutcome.ESCALATED_PHONE_LOOKUP_FAILED,
+            SessionOutcome.ESCALATED_NEW_NUMBER_FAILED,
+            SessionOutcome.ESCALATED_NUMBER_IN_USE,
+            SessionOutcome.TIMED_OUT,
+        }
+
 
 @dataclass
 class Account:
@@ -92,8 +115,8 @@ class SessionState:
     last_activity_at: float = field(default_factory=time.monotonic)
     still_there_prompted_at: float | None = None
 
-    # Names of the mock API calls made, in order. The test harness asserts
-    # against this, and the UI renders it as a live action log.
+    # Names of the mock API calls made, in order. The test suite asserts
+    # against this to prove the right sequence of actions ran.
     actions_taken: list[str] = field(default_factory=list)
 
     # ---- Derived properties ----------------------------------------------

@@ -381,3 +381,31 @@ def test_ended_session_rejects_record_unclear_intent():
 
     result = execute_tool("record_unclear_intent", {}, state=state, api=api)
     assert result.startswith("BLOCKED")
+
+
+# --- ends_chat: which outcomes should retire the chat input in app.py -------
+
+
+def test_escalation_and_lockout_outcomes_end_the_chat():
+    for outcome in [
+        SessionOutcome.LOCKED_VERIFICATION_FAILED,
+        SessionOutcome.ESCALATED_NO_ID,
+        SessionOutcome.ESCALATED_UNCLEAR_INTENT,
+        SessionOutcome.ESCALATED_PHONE_LOOKUP_FAILED,
+        SessionOutcome.ESCALATED_NEW_NUMBER_FAILED,
+        SessionOutcome.ESCALATED_NUMBER_IN_USE,
+        SessionOutcome.TIMED_OUT,
+    ]:
+        assert outcome.ends_chat, f"{outcome} should end the chat"
+
+
+def test_happy_path_outcomes_do_not_end_the_chat():
+    # These are terminal for guardrail purposes (direct tool calls are
+    # blocked) but the flow still expects an "anything else?" exchange,
+    # so the chat input must stay open.
+    assert not SessionOutcome.SELF_SERVE_REDIRECT.ends_chat
+    assert not SessionOutcome.NUMBER_CHANGED.ends_chat
+
+
+def test_in_progress_does_not_end_the_chat():
+    assert not SessionOutcome.IN_PROGRESS.ends_chat

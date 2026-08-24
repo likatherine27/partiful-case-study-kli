@@ -7,12 +7,13 @@ tests/run_test_set.py drive the exact same Agent class with no UI at all,
 so the demo and the automated tests exercise identical code.
 
 This view intentionally shows only what a real user would see — no
-internal session/debug panel. The internal-API action log the assignment
-asks for still happens (see mock_api.py's print calls); it just surfaces
-in the terminal running `streamlit run`, not on screen, since a real user
-would never see that either.
+internal session/debug panel. The internal-API action log still happens
+(see mock_api.py's print calls); it just surfaces in the terminal running
+`streamlit run`, not on screen, since a real user would never see that
+either — this keeps an audit trail available to whoever's operating the
+agent without cluttering the customer-facing UI.
 
-Styling here follows Katherine's explicit direction: a fixed gradient
+The visual design is deliberate, not default Streamlit: a fixed gradient
 background, translucent overlay bubbles for the user, plain unbubbled text
 for the assistant, and a best-effort (not a pixel trace) approximation of
 Partiful's logo mark on the assistant's avatar.
@@ -299,10 +300,14 @@ def _send_turn(user_text: str) -> None:
         placeholder.write(reply)
 
 
-if agent.state.outcome == SessionOutcome.TIMED_OUT:
-    # A timeout is the one terminal state that really ends things — every
-    # other terminal outcome leaves the chat open for "anything else?" or
-    # a redirect, but there's no one left to talk to here.
+if agent.state.outcome.ends_chat:
+    # These outcomes are the ones where the agent has told the user the
+    # chat is over (an escalation to support, a lockout, or a timeout) —
+    # there's nothing left to say, so retire the input rather than let
+    # the user keep typing into a closed conversation. The two happy-path
+    # terminal outcomes (self-serve redirect, number changed) are NOT
+    # included here: those still expect an "anything else?" exchange
+    # before the chat actually closes.
     if st.button("Start a new chat"):
         st.session_state.agent = new_agent()
         st.session_state.display_messages = []
