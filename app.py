@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image, ImageDraw, ImageFont
 from streamlit_autorefresh import st_autorefresh
 
@@ -329,3 +330,25 @@ else:
     if user_text:
         _send_turn(user_text)
         st.rerun()
+
+# Streamlit doesn't auto-scroll the page on new content — for a short
+# conversation that never matters (everything already fits on screen), but
+# once it grows past viewport height a new message, or the final reply
+# plus the "Start a new chat" button, can land below the fold with nothing
+# pulling the view down to it. This anchor + script combo runs on every
+# rerun and scrolls it into view; the small delay lets Streamlit finish
+# painting this run's content first.
+st.markdown('<div id="pf-scroll-anchor"></div>', unsafe_allow_html=True)
+components.html(
+    """
+    <script>
+        setTimeout(function () {
+            const anchor = window.parent.document.getElementById("pf-scroll-anchor");
+            if (anchor) {
+                anchor.scrollIntoView({behavior: "instant", block: "end"});
+            }
+        }, 50);
+    </script>
+    """,
+    height=0,
+)
