@@ -7,8 +7,7 @@ as little human involvement as possible.
 
 Background on the manual process this replaces is in
 [docs/brief.md](docs/brief.md). Full scoping rationale, and what's
-deliberately out of scope for this version, is in the **design doc**:
-_[link]_.
+deliberately out of scope for this version, is in the **[scoping doc](https://docs.google.com/document/d/1IyH35stH8aZunloDUODHVpDqJWdmLKg4IevVmgf7ssI/edit?tab=t.i96r97potq5x#heading=h.jv5pwdiiid4y)**.
 
 ## How it works
 
@@ -114,7 +113,7 @@ to talk the agent into skipping verification outright.
 ## Assumptions & scope
 
 Notable assumptions made to keep this a buildable MVP (full rationale in
-the design doc):
+the scoping doc):
 
 - Phone numbers are validated for any region (via `phonenumbers`/libphonenumber),
   not just US (`+1`) — but the mock account directory itself only seeds US
@@ -126,4 +125,4 @@ the design doc):
   to Partiful's real backend services.
 
 What's explicitly **out of scope for MVP** — and why — is written up in the
-design doc linked above, not duplicated here.
+scoping doc linked above, not duplicated here.
