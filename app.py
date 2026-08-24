@@ -25,7 +25,6 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 from PIL import Image, ImageDraw, ImageFont
-from streamlit_autorefresh import st_autorefresh
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
@@ -33,12 +32,6 @@ from partiful_agent.agent import Agent  # noqa: E402
 from partiful_agent.state import SessionOutcome  # noqa: E402
 
 st.set_page_config(page_title="Partiful Support", page_icon="📱")
-
-# Streamlit only re-runs this script in response to user interaction, but
-# an inactivity check has to fire even when the user does nothing at all.
-# This forces a re-run every few seconds so check_inactivity() below gets a
-# chance to notice a quiet user without anyone touching the page.
-st_autorefresh(interval=60_000, key="inactivity_poll")
 
 
 def _html(markup: str) -> str:
@@ -271,12 +264,30 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Runs on every single script execution, including autorefresh-triggered
-# ones with no user action at all — that's what lets "are you still
-# there?" and the eventual timeout fire on their own.
-inactivity_message = agent.check_inactivity()
-if inactivity_message is not None:
-    st.session_state.display_messages.append(("assistant", inactivity_message))
+@st.fragment(run_every=60)
+def _poll_inactivity() -> None:
+    """Ticks independently of the rest of the app so "are you still
+    there?" and the eventual timeout fire on their own, without anyone
+    touching the page.
+
+    This used to be a plain st_autorefresh() call forcing a full-script
+    rerun every tick — but a full rerun triggered while a message send
+    was mid-flight (blocked on the Claude API call in _send_turn) got
+    treated as superseding that run: the tool call's state mutation had
+    already happened, but the script never reached the line that records
+    the reply, so the turn silently produced nothing. A fragment's own
+    run_every reruns are isolated from the rest of the app — they don't
+    touch this at all — and it only escalates to a real st.rerun() (the
+    one thing that could re-trigger that problem) on the rare tick where
+    there's actually a new message to show, not on every idle tick.
+    """
+    inactivity_message = agent.check_inactivity()
+    if inactivity_message is not None:
+        st.session_state.display_messages.append(("assistant", inactivity_message))
+        st.rerun()
+
+
+_poll_inactivity()
 
 for role, text in st.session_state.display_messages:
     avatar = ASSISTANT_AVATAR if role == "assistant" else None
