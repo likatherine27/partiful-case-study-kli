@@ -42,7 +42,7 @@ src/partiful_agent/
   mock_api.py                 Stand-in for Partiful's internal APIs (prints every call)
   config.py                   Tunable constants (retry limits, timeouts, model, pricing)
 tests/
-  test_cases.yaml             The test set (20 scenarios, happy path + adversarial)
+  test_cases.yaml             The test set (19 scenarios, happy path + adversarial)
   run_test_set.py             Runs test_cases.yaml as real conversations against the live API
   test_guardrails.py          Fast, free unit tests for the security rules (no network calls)
   test_inactivity.py          Unit tests for the "are you still there?" / timeout logic
@@ -95,12 +95,12 @@ Two layers, matching what's fast/free versus what proves the real thing:
 # Fast, free, deterministic — the guardrails and inactivity logic, no network calls
 pytest tests/ -v
 
-# The test set — 20 real conversations against the live Claude API, checked
+# The test set — 19 real conversations against the live Claude API, checked
 # against the agent's own ground truth (state.outcome, exact tool calls
 # made), not fuzzy text matching. Prints real dollar cost at the end.
 python3 tests/run_test_set.py
 
-# Re-run just the case(s) you're debugging instead of paying for all 20
+# Re-run just the case(s) you're debugging instead of paying for all 19
 python3 tests/run_test_set.py happy_path_verified_and_changed
 ```
 

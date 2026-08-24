@@ -146,17 +146,23 @@ def test_close_chat_after_self_serve_redirect_ends_the_chat():
     assert state.outcome == SessionOutcome.SELF_SERVE_REDIRECT
 
 
-def test_close_chat_after_number_changed_ends_the_chat():
+def test_number_changed_ends_the_chat_immediately_without_close_chat():
+    # Unlike self-serve redirect, a completed number change ends the chat
+    # on its own — no "anything else?" wrap-up, no close_chat call needed.
+    # (The tool result here is instructions for the model, never shown to
+    # the user directly — the live conversation test in test_cases.yaml
+    # is what proves the actual reply doesn't ask "anything else?".)
     state, api = _verified_state()
     execute_tool(
         "update_phone_number", {"new_number": "+19998887777"}, state=state, api=api
     )
-    assert not state.chat_has_ended
-
-    execute_tool("close_chat", {}, state=state, api=api)
 
     assert state.chat_has_ended
     assert state.outcome == SessionOutcome.NUMBER_CHANGED
+
+    # close_chat no longer applies here — the chat already ended.
+    blocked = execute_tool("close_chat", {}, state=state, api=api)
+    assert blocked.startswith("BLOCKED")
 
 
 def test_close_chat_rejected_while_still_in_progress():
@@ -444,8 +450,9 @@ def test_unrelated_topic_escalates_immediately_and_ends_the_chat():
 # --- ends_chat: which outcomes should retire the chat input in app.py -------
 
 
-def test_escalation_and_lockout_outcomes_end_the_chat():
+def test_escalation_lockout_and_number_changed_outcomes_end_the_chat():
     for outcome in [
+        SessionOutcome.NUMBER_CHANGED,
         SessionOutcome.LOCKED_VERIFICATION_FAILED,
         SessionOutcome.ESCALATED_NO_ID,
         SessionOutcome.ESCALATED_UNCLEAR_INTENT,
@@ -454,16 +461,16 @@ def test_escalation_and_lockout_outcomes_end_the_chat():
         SessionOutcome.ESCALATED_NUMBER_IN_USE,
         SessionOutcome.ESCALATED_UNRELATED_TOPIC,
         SessionOutcome.TIMED_OUT,
+        SessionOutcome.TOOL_LOOP_EXHAUSTED,
     ]:
         assert outcome.ends_chat, f"{outcome} should end the chat"
 
 
-def test_happy_path_outcomes_do_not_end_the_chat():
-    # These are terminal for guardrail purposes (direct tool calls are
-    # blocked) but the flow still expects an "anything else?" exchange,
-    # so the chat input must stay open.
+def test_self_serve_redirect_does_not_end_the_chat_on_its_own():
+    # The one outcome that's terminal for guardrail purposes (direct tool
+    # calls are blocked) but still expects an "anything else?" exchange
+    # before close_chat actually ends it — see chat_has_ended.
     assert not SessionOutcome.SELF_SERVE_REDIRECT.ends_chat
-    assert not SessionOutcome.NUMBER_CHANGED.ends_chat
 
 
 def test_in_progress_does_not_end_the_chat():

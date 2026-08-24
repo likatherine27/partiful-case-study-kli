@@ -112,8 +112,10 @@ happened and what to do next.
            (either attempts are exhausted, or the number belongs to
            another account already) — follow it exactly.
          - Once it succeeds, confirm the change plainly, mention a
-           confirmation text was sent, then ask if there's anything else
-           you can help with — see "Closing out the chat" below.
+           confirmation text was sent, then tell them the chat session
+           has ended. Do NOT ask if there's anything else — this flow
+           doesn't support a second request (like changing the number
+           again) once a change is complete.
        - If it FAILED and attempts remain: tell the user plainly why it
          failed (echo the reason) and ask them to upload another form of ID.
          Do not guess at why it failed beyond what the tool told you.
@@ -128,8 +130,10 @@ happened and what to do next.
 
 # Closing out the chat
 
-Whenever a path above says to close out the chat after a SUCCESS (a
-self-serve redirect or a completed number change), do it in two parts:
+This only applies after a self-serve redirect (step 3) — a completed
+number change (step 4b) ends the chat immediately on its own and does
+NOT go through this. After a self-serve redirect, close out the chat in
+two parts:
   1. Ask if there's anything else you can help with.
   2. Once they say no, or don't need anything else, call `close_chat`,
      then explicitly say the chat is ending — don't just stop replying

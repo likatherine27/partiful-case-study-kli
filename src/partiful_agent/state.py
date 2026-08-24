@@ -41,6 +41,7 @@ class SessionOutcome(str, Enum):
     ESCALATED_NUMBER_IN_USE = "escalated_number_in_use"  # new number taken elsewhere
     ESCALATED_UNRELATED_TOPIC = "escalated_unrelated_topic"  # not a phone-number request
     TIMED_OUT = "timed_out"  # user went quiet
+    TOOL_LOOP_EXHAUSTED = "tool_loop_exhausted"  # agent.py hit MAX_TOOL_ITERATIONS
 
     @property
     def is_terminal(self) -> bool:
@@ -50,16 +51,18 @@ class SessionOutcome(str, Enum):
     def ends_chat(self) -> bool:
         """True for outcomes where no further reply is expected at all.
 
-        Narrower than `is_terminal`: the two happy-path outcomes
-        (SELF_SERVE_REDIRECT, NUMBER_CHANGED) are terminal for guardrail
-        purposes — direct tool calls are blocked — but the flow still
-        expects an "anything else?" exchange before the chat actually
-        closes. The outcomes here are the ones prompts.py calls "stop and
-        escalate" / "end the conversation": there is nothing left to say
-        beyond the support-email instruction, so the UI can safely retire
-        the input the moment one of these is reached.
+        Narrower than `is_terminal`: SELF_SERVE_REDIRECT is terminal for
+        guardrail purposes — direct tool calls are blocked — but the flow
+        still expects an "anything else?" exchange before the chat
+        actually closes (see `close_chat`). Every other terminal outcome
+        ends the chat the moment it's reached, with nothing left to say:
+        the escalation/lockout/timeout outcomes point to support and
+        stop there, and NUMBER_CHANGED stops there too — this flow
+        doesn't support a second request (like changing the number
+        again) once a change is complete.
         """
         return self in {
+            SessionOutcome.NUMBER_CHANGED,
             SessionOutcome.LOCKED_VERIFICATION_FAILED,
             SessionOutcome.ESCALATED_NO_ID,
             SessionOutcome.ESCALATED_UNCLEAR_INTENT,
@@ -68,6 +71,7 @@ class SessionOutcome(str, Enum):
             SessionOutcome.ESCALATED_NUMBER_IN_USE,
             SessionOutcome.ESCALATED_UNRELATED_TOPIC,
             SessionOutcome.TIMED_OUT,
+            SessionOutcome.TOOL_LOOP_EXHAUSTED,
         }
 
 
@@ -165,11 +169,12 @@ class SessionState:
         and show "Start a new chat".
 
         Covers both ways a conversation actually finishes: an outcome
-        that ends the chat on its own (`outcome.ends_chat` — an
-        escalation, lockout, or timeout, with nothing left to say beyond
-        the support-email instruction), or a happy-path outcome whose
-        "anything else?" wrap-up has concluded (`chat_closed`, set by
-        the `close_chat` tool once the user says they're done).
+        that ends the chat on its own (`outcome.ends_chat` — a completed
+        number change, an escalation, a lockout, or a timeout, with
+        nothing left to say), or the one outcome that doesn't
+        (SELF_SERVE_REDIRECT) once its "anything else?" wrap-up has
+        concluded (`chat_closed`, set by the `close_chat` tool once the
+        user says they're done).
         """
         return self.outcome.ends_chat or self.chat_closed
 
@@ -186,14 +191,14 @@ class SessionState:
             )
 
     def require_can_close_chat(self) -> None:
-        if self.outcome not in (
-            SessionOutcome.SELF_SERVE_REDIRECT,
-            SessionOutcome.NUMBER_CHANGED,
-        ):
+        """Only self-serve redirect goes through an "anything else?"
+        wrap-up. NUMBER_CHANGED ends the chat on its own the moment it's
+        set — see SessionOutcome.ends_chat — so there's nothing for this
+        to do there."""
+        if self.outcome != SessionOutcome.SELF_SERVE_REDIRECT:
             raise GuardrailViolation(
-                "Can only close out the chat after a self-serve redirect or "
-                "a completed number change — this session isn't in either "
-                "state."
+                "Can only close out the chat after a self-serve redirect — "
+                "this session isn't in that state."
             )
 
     def require_session_open(self) -> None:
@@ -268,8 +273,8 @@ class SessionState:
     def close_chat(self) -> None:
         """Marks the "anything else?" wrap-up as concluded. Only reachable
         via the guardrail above, so `outcome` is already SELF_SERVE_REDIRECT
-        or NUMBER_CHANGED — this doesn't change what happened, just records
-        that there's nothing left to say."""
+        — this doesn't change what happened, just records that there's
+        nothing left to say."""
         self.chat_closed = True
 
     def record_unclear_intent(self) -> None:

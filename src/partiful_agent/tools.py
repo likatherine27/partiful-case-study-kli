@@ -192,10 +192,11 @@ TOOL_SCHEMAS = [
     {
         "name": "close_chat",
         "description": (
-            "Record that the chat is closing out after a self-serve redirect "
-            "or a completed number change, once the user has confirmed they "
-            "don't need anything else. Call this right before telling them "
-            "the chat is ending."
+            "Record that the chat is closing out after a self-serve "
+            "redirect, once the user has confirmed they don't need "
+            "anything else. Call this right before telling them the chat "
+            "is ending. Not used after a completed number change — that "
+            "flow ends on its own as soon as update_phone_number succeeds."
         ),
         "input_schema": {"type": "object", "properties": {}},
     },
@@ -354,7 +355,13 @@ def _update_phone_number(
         api.update_phone_number(account=state.account, new_number=new_number)
         api.send_confirmation_text(to_number=new_number)
         state.outcome = SessionOutcome.NUMBER_CHANGED
-        return f"Phone number changed to {new_number}. A confirmation text was sent."
+        return (
+            f"Phone number changed to {new_number}. A confirmation text was "
+            "sent. Confirm this to the user plainly, then tell them the "
+            "chat session has ended. Do NOT ask if there's anything else — "
+            "this flow doesn't support a second request (like changing the "
+            "number again) once a change is complete."
+        )
 
     state.record_new_number_attempt()
     if state.new_number_attempts_remaining == 0:

@@ -154,6 +154,12 @@ class Agent:
                 {"role": "user", "content": self._run_tools(tool_uses)}
             )
 
+        # Claude never settled on a text reply within the iteration budget.
+        # This message tells the user we're done here, so the session
+        # needs to actually end here too — otherwise the chat input stays
+        # open with no "Start a new chat" button, same bug as every other
+        # ending path in this file.
+        self.state.outcome = SessionOutcome.TOOL_LOOP_EXHAUSTED
         return (
             "Sorry, something went wrong on my end handling that. "
             f"Please email {config.SUPPORT_EMAIL} and we'll take it from here."

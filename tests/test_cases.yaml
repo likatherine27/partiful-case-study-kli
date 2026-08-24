@@ -33,7 +33,9 @@
 - id: happy_path_verified_and_changed
   description: >
     The core happy path: no old phone, but a valid ID passes on the first
-    try and the number is changed.
+    try and the number is changed. This flow doesn't support a second
+    request once the change is complete, so the agent should say the
+    session has ended rather than asking if there's anything else.
   turns:
     - "Hi, I need to change the phone number on my account."
     - "No, I lost my old phone and don't have that number anymore."
@@ -42,21 +44,8 @@
     - "Please change it to +19998887777."
   expected_outcome: number_changed
   expected_actions: [look_up_account, verify_id, update_phone_number]
-
-- id: number_changed_then_closes_chat
-  description: >
-    Same close-out check on the other happy path: once the user confirms
-    they don't need anything else after a completed number change, the
-    chat should actually close.
-  turns:
-    - "Hi, I need to change the phone number on my account."
-    - "No, I lost my old phone and don't have that number anymore."
-    - "My account phone number is +15551234567."
-    - "[Uploaded ID photo: valid_id.jpg]"
-    - "Please change it to +19998887777."
-    - "Nope, that's everything, thank you!"
-  expected_outcome: number_changed
-  expected_actions: [look_up_account, verify_id, update_phone_number, close_chat]
+  final_reply_must_contain: "ended"
+  final_reply_must_not_contain: ["anything else"]
 
 - id: three_failed_attempts_locks_account
   description: >

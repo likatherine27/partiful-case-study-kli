@@ -107,6 +107,14 @@ def _run_case_body(agent: Agent, case: dict, replies: list[str], *, verbose: boo
                 f"first reply must not contain '{forbidden}', got: {replies[0]!r}",
             )
 
+    if "final_reply_must_not_contain" in case:
+        final = replies[-1].lower()
+        for forbidden in case["final_reply_must_not_contain"]:
+            _check(
+                forbidden.lower() not in final,
+                f"final reply must not contain '{forbidden}', got: {replies[-1]!r}",
+            )
+
 
 def main() -> int:
     args = sys.argv[1:]
