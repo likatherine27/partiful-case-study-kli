@@ -62,8 +62,9 @@ model says:
 - Three unclear responses, three bad account lookups, or three invalid
   proposed numbers each end the session and point the user to
   `hello@partiful.com` instead of looping forever.
-- A proposed new number that's already attached to a *different* account
-  escalates immediately rather than being treated as a retryable typo.
+- A proposed new number that's already attached to a *different* account,
+  or a request that isn't a phone-number change at all, escalates
+  immediately rather than being treated as a retryable typo.
 - A quiet user gets a check-in after 15 minutes and the session closes
   after 5 more minutes of silence.
 

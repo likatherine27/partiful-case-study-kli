@@ -179,6 +179,16 @@ TOOL_SCHEMAS = [
         ),
         "input_schema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "escalate_unrelated_topic",
+        "description": (
+            "Record that the user's request isn't a phone-number change and "
+            "is out of scope for this chat, and that they're being pointed to "
+            "email support instead. Call this once you know the topic isn't a "
+            "phone-number change, before telling the user."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
 ]
 
 
@@ -363,6 +373,20 @@ def _escalate_no_id(state: SessionState, api: MockPartifulAPI) -> str:
     )
 
 
+def _escalate_unrelated_topic(state: SessionState, api: MockPartifulAPI) -> str:
+    try:
+        state.require_session_open()
+    except GuardrailViolation as exc:
+        return f"BLOCKED: {exc}"
+
+    state.outcome = SessionOutcome.ESCALATED_UNRELATED_TOPIC
+    return (
+        f"Recorded: request is out of scope. Tell them plainly that this "
+        f"chat only handles phone-number changes and they should email "
+        f"{config.SUPPORT_EMAIL} for anything else. End the conversation."
+    )
+
+
 _HANDLERS: dict[str, Callable[..., str]] = {
     "record_unclear_intent": _record_unclear_intent,
     "resume_after_self_serve_failure": _resume_after_self_serve_failure,
@@ -371,6 +395,7 @@ _HANDLERS: dict[str, Callable[..., str]] = {
     "verify_id": _verify_id,
     "update_phone_number": _update_phone_number,
     "escalate_no_id": _escalate_no_id,
+    "escalate_unrelated_topic": _escalate_unrelated_topic,
 }
 
 

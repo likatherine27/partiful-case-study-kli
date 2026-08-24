@@ -39,6 +39,7 @@ class SessionOutcome(str, Enum):
     ESCALATED_PHONE_LOOKUP_FAILED = "escalated_phone_lookup_failed"  # 3 bad lookups
     ESCALATED_NEW_NUMBER_FAILED = "escalated_new_number_failed"  # 3 bad new numbers
     ESCALATED_NUMBER_IN_USE = "escalated_number_in_use"  # new number taken elsewhere
+    ESCALATED_UNRELATED_TOPIC = "escalated_unrelated_topic"  # not a phone-number request
     TIMED_OUT = "timed_out"  # user went quiet
 
     @property
@@ -65,6 +66,7 @@ class SessionOutcome(str, Enum):
             SessionOutcome.ESCALATED_PHONE_LOOKUP_FAILED,
             SessionOutcome.ESCALATED_NEW_NUMBER_FAILED,
             SessionOutcome.ESCALATED_NUMBER_IN_USE,
+            SessionOutcome.ESCALATED_UNRELATED_TOPIC,
             SessionOutcome.TIMED_OUT,
         }
 

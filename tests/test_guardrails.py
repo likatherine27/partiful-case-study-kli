@@ -334,6 +334,7 @@ def test_every_state_changing_tool_is_blocked_once_locked():
         ("redirect_to_self_serve", {}),
         ("resume_after_self_serve_failure", {}),
         ("escalate_no_id", {}),
+        ("escalate_unrelated_topic", {}),
         ("verify_id", {"image_ref": "valid_id.jpg"}),
         ("update_phone_number", {"new_number": "+19998887777"}),
         ("look_up_account", {"phone_number": OTHER_PHONE}),
@@ -383,6 +384,15 @@ def test_ended_session_rejects_record_unclear_intent():
     assert result.startswith("BLOCKED")
 
 
+def test_unrelated_topic_escalates_immediately_and_ends_the_chat():
+    state, api = _fresh()
+    result = execute_tool("escalate_unrelated_topic", {}, state=state, api=api)
+
+    assert "end the conversation" in result.lower()
+    assert state.outcome == SessionOutcome.ESCALATED_UNRELATED_TOPIC
+    assert state.outcome.ends_chat
+
+
 # --- ends_chat: which outcomes should retire the chat input in app.py -------
 
 
@@ -394,6 +404,7 @@ def test_escalation_and_lockout_outcomes_end_the_chat():
         SessionOutcome.ESCALATED_PHONE_LOOKUP_FAILED,
         SessionOutcome.ESCALATED_NEW_NUMBER_FAILED,
         SessionOutcome.ESCALATED_NUMBER_IN_USE,
+        SessionOutcome.ESCALATED_UNRELATED_TOPIC,
         SessionOutcome.TIMED_OUT,
     ]:
         assert outcome.ends_chat, f"{outcome} should end the chat"

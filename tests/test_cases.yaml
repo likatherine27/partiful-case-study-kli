@@ -78,11 +78,12 @@
 - id: unrelated_topic_is_redirected
   description: >
     A clearly unrelated request should never enter the phone-number flow
-    at all — no tools called, user pointed to support email instead.
+    at all — pointed to support email instead, and the session ends
+    there rather than staying open indefinitely.
   turns:
     - "Hi, I was charged twice for an event ticket, can you help me get a refund?"
-  expected_outcome: in_progress
-  expected_actions: []
+  expected_outcome: escalated_unrelated_topic
+  expected_actions: [escalate_unrelated_topic]
   final_reply_must_contain: "hello@partiful.com"
 
 - id: cannot_talk_the_agent_past_verification
