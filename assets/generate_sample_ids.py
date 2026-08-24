@@ -3,8 +3,9 @@
 These are NOT attempts to look like a real government ID — each one is
 clearly labeled as a test fixture. The verification stub in mock_api.py
 keys off the FILENAME only (it never reads pixels), so what's drawn here
-is purely to make the demo recording legible: someone watching the video
-should be able to tell, at a glance, which scenario is being tested.
+is purely for legibility: anyone watching a session or reviewing a
+screenshot should be able to tell, at a glance, which scenario is being
+tested.
 
 Run once with: python3 assets/generate_sample_ids.py
 The output files are committed to the repo, so nobody else needs to

@@ -5,15 +5,10 @@ support flow: it identifies the account, collects and verifies a government
 ID, and (only after a real pass) commits the phone number change — all with
 as little human involvement as possible.
 
-Built for the Business Operations Associate take-home. The full problem
-statement is in [docs/brief.md](docs/brief.md).
-
-## Submission
-
-- **Scoping document:** _[link to the MVP scoping doc]_
-- **Demo recording:** _[link to the video walking through the test set]_
-- **Agent:** this repo — see [Running the agent](#running-the-agent) below
-- **Test set:** [tests/test_cases.yaml](tests/test_cases.yaml) — see [Testing](#testing)
+Background on the manual process this replaces is in
+[docs/brief.md](docs/brief.md). Full scoping rationale, and what's
+deliberately out of scope for this version, is in the **design doc**:
+_[link]_.
 
 ## How it works
 
@@ -32,10 +27,11 @@ system:
    passed ID check. This is deliberate: the model drives the conversation,
    but it does not get to decide what's allowed to happen.
 4. Real internal-API calls (account lookup, ID verification, committing the
-   change, locking an account, escalating to support) are stubbed in
-   `mock_api.py` per the assignment. Every call is printed to the terminal
-   as `[API CALL] ...` and logged to `state.actions_taken`, which is what
-   both the test suite and the UI's behavior are built on.
+   change, locking an account) have no backend to call from this
+   environment, so they're stubbed in `mock_api.py`. Every call is printed
+   to the terminal as `[API CALL] ...` and logged to `state.actions_taken`,
+   which the test suite asserts against to verify the right sequence of
+   actions ran.
 
 ```
 app.py                        Streamlit chat UI (rendering only, no business logic)
@@ -47,12 +43,12 @@ src/partiful_agent/
   mock_api.py                 Stand-in for Partiful's internal APIs (prints every call)
   config.py                   Tunable constants (retry limits, timeouts, model, pricing)
 tests/
-  test_cases.yaml             The required test set (15 scenarios, happy path + adversarial)
+  test_cases.yaml             The test set (18 scenarios, happy path + adversarial)
   run_test_set.py             Runs test_cases.yaml as real conversations against the live API
   test_guardrails.py          Fast, free unit tests for the security rules (no network calls)
   test_inactivity.py          Unit tests for the "are you still there?" / timeout logic
 assets/                       Sample ID images used by the test set (see generate_sample_ids.py)
-docs/brief.md                 The original assignment prompt
+docs/brief.md                 Background on the manual process this agent replaces
 ```
 
 ### Guardrails (what keeps this safe to automate)
@@ -99,25 +95,25 @@ Two layers, matching what's fast/free versus what proves the real thing:
 # Fast, free, deterministic — the guardrails and inactivity logic, no network calls
 pytest tests/ -v
 
-# The required test set — 15 real conversations against the live Claude API,
-# checked against the agent's own ground truth (state.outcome, exact tool
-# calls made), not fuzzy text matching. Prints real dollar cost at the end.
+# The test set — 18 real conversations against the live Claude API, checked
+# against the agent's own ground truth (state.outcome, exact tool calls
+# made), not fuzzy text matching. Prints real dollar cost at the end.
 python3 tests/run_test_set.py
 
-# Re-run just the case(s) you're debugging instead of paying for all 15
+# Re-run just the case(s) you're debugging instead of paying for all 18
 python3 tests/run_test_set.py happy_path_verified_and_changed
 ```
 
-`tests/test_cases.yaml` covers the in-scope happy paths (self-serve
-redirect, verify-and-change, three-strikes lockout), every exhaustion path
-(unclear intent, bad phone lookups, bad new numbers), a couple of
-regression cases for real bugs hit during development, and an adversarial
-case that tries to talk the agent into skipping verification outright.
+`tests/test_cases.yaml` covers the happy paths (self-serve redirect,
+verify-and-change, three-strikes lockout), every exhaustion path (unclear
+intent, bad phone lookups, bad new numbers), a couple of regression cases
+for real bugs hit during development, and an adversarial case that tries
+to talk the agent into skipping verification outright.
 
 ## Assumptions & scope
 
 Notable assumptions made to keep this a buildable MVP (full rationale in
-the scoping document):
+the design doc):
 
 - Phone numbers are validated for any region (via `phonenumbers`/libphonenumber),
   not just US (`+1`) — but the mock account directory itself only seeds US
@@ -125,7 +121,8 @@ the scoping document):
   no account.
 - ID verification is a deterministic stub keyed off the uploaded file's
   name, standing in for a real vendor (e.g. Persona, Stripe Identity).
-- Internal API calls are printed, not executed, per the assignment.
+- Internal API calls are printed, not executed — this repo has no access
+  to Partiful's real backend services.
 
 What's explicitly **out of scope for MVP** — and why — is written up in the
-scoping document linked above, not duplicated here.
+design doc linked above, not duplicated here.

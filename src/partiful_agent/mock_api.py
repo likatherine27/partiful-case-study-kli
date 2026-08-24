@@ -1,12 +1,12 @@
 """Stand-in for Partiful's internal APIs.
 
-The take-home says to print internal-API actions rather than call them, so
+This project has no access to Partiful's real internal services, so
 **every** side effect the agent can cause is funnelled through this one class
-and printed as `[API CALL] ...`. Swapping in the real backend means editing
-this file and nothing else.
+and printed as `[API CALL] ...` instead of actually executed. Swapping in
+the real backend means editing this file and nothing else.
 
-Calls are also recorded in `self.calls`, which is what the test harness
-asserts against and what the UI renders as a live action log.
+Calls are also recorded in `self.calls`, which is what the test suite
+asserts against to prove the right sequence of actions ran.
 """
 
 from __future__ import annotations
@@ -65,9 +65,9 @@ _SEED_ACCOUNTS: dict[str, Account] = {
 # --- Deterministic ID-verification stub ------------------------------------
 #
 # Real verification would call a vendor (Persona, Stripe Identity, Onfido) or
-# an internal service. For a demo that has to be repeatable on video, the
-# outcome is keyed off the uploaded file's NAME. Documented as an assumption
-# in the scoping doc.
+# an internal service. This stub keys off the uploaded file's NAME instead,
+# so the same fixture always produces the same result — a deliberate
+# simplification for a fast, fully repeatable test suite.
 
 _ID_FIXTURES: dict[str, VerificationResult] = {
     "valid_id": VerificationResult(
@@ -155,9 +155,3 @@ class MockPartifulAPI:
             "lock_account", account_id=account.account_id, reason=reason
         )
         account.locked = True
-
-    def escalate_to_support(self, *, user_email: str, message: str) -> None:
-        """Route the conversation to a human on the support team."""
-        self._record(
-            "escalate_to_support", user_email=user_email, message=message
-        )

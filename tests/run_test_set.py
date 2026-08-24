@@ -1,6 +1,6 @@
 """Runs tests/test_cases.yaml as real conversations against the live Claude
 API, using the exact same Agent class app.py uses — no UI, no mocking of
-Claude itself (only Partiful's backend is mocked, per the assignment).
+Claude itself (only Partiful's backend is mocked; see mock_api.py).
 
 Each case is checked against ground truth the agent already tracks for
 itself (state.outcome, the exact tool-call sequence) rather than fuzzy text
@@ -106,8 +106,6 @@ def _run_case_body(agent: Agent, case: dict, replies: list[str], *, verbose: boo
                 forbidden.lower() not in first,
                 f"first reply must not contain '{forbidden}', got: {replies[0]!r}",
             )
-
-    return agent
 
 
 def main() -> int:

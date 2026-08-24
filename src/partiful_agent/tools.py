@@ -77,6 +77,7 @@ def _invalid_phone_reason(number: str) -> str | None:
         "UK)."
     )
 
+
 # ---- Schemas: what Claude sees ---------------------------------------------
 
 TOOL_SCHEMAS = [

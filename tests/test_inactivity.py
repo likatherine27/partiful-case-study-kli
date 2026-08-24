@@ -3,8 +3,8 @@
 check_inactivity() never calls the Claude API — the "still there?" and
 timeout messages are scripted, not generated — so these tests don't cost
 anything. They monkeypatch the real 15-minute/5-minute thresholds down to
-2 seconds (agreed with Katherine) so the suite runs in seconds instead of
-twenty minutes, while exercising the exact same code path production uses.
+2 seconds so the suite runs in seconds instead of twenty minutes, while
+exercising the exact same code path production uses.
 """
 
 import sys
