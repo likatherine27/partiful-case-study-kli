@@ -65,12 +65,19 @@ def _letter_avatar(letter: str, bg: str, fg: str, size: int = 96) -> Image.Image
     """
     img = Image.new("RGB", (size, size), bg)
     draw = ImageDraw.Draw(img)
+    font_size = int(size * 0.5)
     try:
         font = ImageFont.truetype(
-            "/System/Library/Fonts/Supplemental/Arial Bold.ttf", int(size * 0.5)
+            "/System/Library/Fonts/Supplemental/Arial Bold.ttf", font_size
         )
     except OSError:
-        font = ImageFont.load_default()
+        # That path only exists on macOS — on Linux (e.g. Streamlit
+        # Community Cloud) this always misses. load_default(size=...)
+        # uses a font bundled inside Pillow itself, so it renders at the
+        # right size everywhere instead of silently falling back to
+        # load_default()'s ~10px bitmap font (which reads as a blank
+        # avatar next to a 96px-square background).
+        font = ImageFont.load_default(size=font_size)
     bbox = draw.textbbox((0, 0), letter, font=font)
     w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
     draw.text(
