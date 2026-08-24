@@ -109,6 +109,13 @@ class SessionState:
     new_number_attempts: int = 0
     outcome: SessionOutcome = SessionOutcome.IN_PROGRESS
 
+    # True once the "anything else?" wrap-up after a happy-path outcome
+    # (self-serve redirect, number changed) has concluded. `outcome` itself
+    # doesn't change here — it still records WHAT happened — this just
+    # tracks whether the follow-up conversation is done, so the UI knows
+    # there's truly nothing left to say.
+    chat_closed: bool = False
+
     # Inactivity tracking. `last_activity_at` starts ticking the moment a
     # session is created — a user who opens the chat and never says
     # anything eventually gets timed out too, same as one who goes quiet
@@ -151,6 +158,21 @@ class SessionState:
     def is_locked(self) -> bool:
         return self.account is not None and self.account.locked
 
+    @property
+    def chat_has_ended(self) -> bool:
+        """True once nothing more should be expected from either side —
+        the single source of truth the UI uses to retire the chat input
+        and show "Start a new chat".
+
+        Covers both ways a conversation actually finishes: an outcome
+        that ends the chat on its own (`outcome.ends_chat` — an
+        escalation, lockout, or timeout, with nothing left to say beyond
+        the support-email instruction), or a happy-path outcome whose
+        "anything else?" wrap-up has concluded (`chat_closed`, set by
+        the `close_chat` tool once the user says they're done).
+        """
+        return self.outcome.ends_chat or self.chat_closed
+
     # ---- Guardrails -------------------------------------------------------
     #
     # Each `require_*` method either returns cleanly or raises
@@ -161,6 +183,17 @@ class SessionState:
             raise GuardrailViolation(
                 "Can only resume this way immediately after a self-serve "
                 "redirect — this session isn't in that state."
+            )
+
+    def require_can_close_chat(self) -> None:
+        if self.outcome not in (
+            SessionOutcome.SELF_SERVE_REDIRECT,
+            SessionOutcome.NUMBER_CHANGED,
+        ):
+            raise GuardrailViolation(
+                "Can only close out the chat after a self-serve redirect or "
+                "a completed number change — this session isn't in either "
+                "state."
             )
 
     def require_session_open(self) -> None:
@@ -231,6 +264,13 @@ class SessionState:
         the user came back saying that redirect didn't actually work for
         them. Only reachable via the guardrail above."""
         self.outcome = SessionOutcome.IN_PROGRESS
+
+    def close_chat(self) -> None:
+        """Marks the "anything else?" wrap-up as concluded. Only reachable
+        via the guardrail above, so `outcome` is already SELF_SERVE_REDIRECT
+        or NUMBER_CHANGED — this doesn't change what happened, just records
+        that there's nothing left to say."""
+        self.chat_closed = True
 
     def record_unclear_intent(self) -> None:
         """Call each time a response still doesn't clarify what the user

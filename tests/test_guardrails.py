@@ -129,6 +129,53 @@ def test_self_serve_never_touches_verification_state():
     assert api.calls == []  # no backend action for a self-serve redirect
 
 
+# --- Closing out the chat ----------------------------------------------------
+
+
+def test_close_chat_after_self_serve_redirect_ends_the_chat():
+    state, api = _fresh()
+    execute_tool("redirect_to_self_serve", {}, state=state, api=api)
+    assert not state.chat_has_ended  # "anything else?" hasn't happened yet
+
+    result = execute_tool("close_chat", {}, state=state, api=api)
+
+    assert not result.startswith("BLOCKED")
+    assert state.chat_closed is True
+    assert state.chat_has_ended
+    # outcome itself is untouched — it still records WHAT happened.
+    assert state.outcome == SessionOutcome.SELF_SERVE_REDIRECT
+
+
+def test_close_chat_after_number_changed_ends_the_chat():
+    state, api = _verified_state()
+    execute_tool(
+        "update_phone_number", {"new_number": "+19998887777"}, state=state, api=api
+    )
+    assert not state.chat_has_ended
+
+    execute_tool("close_chat", {}, state=state, api=api)
+
+    assert state.chat_has_ended
+    assert state.outcome == SessionOutcome.NUMBER_CHANGED
+
+
+def test_close_chat_rejected_while_still_in_progress():
+    state, api = _fresh()
+    result = execute_tool("close_chat", {}, state=state, api=api)
+
+    assert result.startswith("BLOCKED")
+    assert not state.chat_has_ended
+
+
+def test_close_chat_rejected_after_an_escalation():
+    state, api = _fresh()
+    execute_tool("escalate_unrelated_topic", {}, state=state, api=api)
+    assert state.chat_has_ended  # already ended, via ends_chat this time
+
+    result = execute_tool("close_chat", {}, state=state, api=api)
+    assert result.startswith("BLOCKED")
+
+
 # --- Unclear intent ---------------------------------------------------------
 
 
@@ -335,6 +382,7 @@ def test_every_state_changing_tool_is_blocked_once_locked():
         ("resume_after_self_serve_failure", {}),
         ("escalate_no_id", {}),
         ("escalate_unrelated_topic", {}),
+        ("close_chat", {}),
         ("verify_id", {"image_ref": "valid_id.jpg"}),
         ("update_phone_number", {"new_number": "+19998887777"}),
         ("look_up_account", {"phone_number": OTHER_PHONE}),

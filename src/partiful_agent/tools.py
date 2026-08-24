@@ -189,6 +189,16 @@ TOOL_SCHEMAS = [
         ),
         "input_schema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "close_chat",
+        "description": (
+            "Record that the chat is closing out after a self-serve redirect "
+            "or a completed number change, once the user has confirmed they "
+            "don't need anything else. Call this right before telling them "
+            "the chat is ending."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
 ]
 
 
@@ -387,6 +397,16 @@ def _escalate_unrelated_topic(state: SessionState, api: MockPartifulAPI) -> str:
     )
 
 
+def _close_chat(state: SessionState, api: MockPartifulAPI) -> str:
+    try:
+        state.require_can_close_chat()
+    except GuardrailViolation as exc:
+        return f"BLOCKED: {exc}"
+
+    state.close_chat()
+    return "Recorded. Tell the user plainly that the chat is ending now."
+
+
 _HANDLERS: dict[str, Callable[..., str]] = {
     "record_unclear_intent": _record_unclear_intent,
     "resume_after_self_serve_failure": _resume_after_self_serve_failure,
@@ -396,6 +416,7 @@ _HANDLERS: dict[str, Callable[..., str]] = {
     "update_phone_number": _update_phone_number,
     "escalate_no_id": _escalate_no_id,
     "escalate_unrelated_topic": _escalate_unrelated_topic,
+    "close_chat": _close_chat,
 }
 
 

@@ -300,14 +300,13 @@ def _send_turn(user_text: str) -> None:
         placeholder.write(reply)
 
 
-if agent.state.outcome.ends_chat:
-    # These outcomes are the ones where the agent has told the user the
-    # chat is over (an escalation to support, a lockout, or a timeout) —
-    # there's nothing left to say, so retire the input rather than let
-    # the user keep typing into a closed conversation. The two happy-path
-    # terminal outcomes (self-serve redirect, number changed) are NOT
-    # included here: those still expect an "anything else?" exchange
-    # before the chat actually closes.
+if agent.state.chat_has_ended:
+    # Covers both ways a conversation actually finishes: an outcome that
+    # ends the chat on its own (escalation, lockout, timeout — nothing
+    # left to say beyond the support-email instruction), or a happy-path
+    # outcome (self-serve redirect, number changed) whose "anything
+    # else?" wrap-up has concluded via close_chat. Either way, retire the
+    # input rather than let the user keep typing into a closed chat.
     if st.button("Start a new chat"):
         st.session_state.agent = new_agent()
         st.session_state.display_messages = []

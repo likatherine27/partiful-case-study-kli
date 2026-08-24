@@ -18,6 +18,18 @@
   expected_outcome: self_serve_redirect
   expected_actions: [redirect_to_self_serve]
 
+- id: self_serve_redirect_then_closes_chat
+  description: >
+    Once the user confirms they don't need anything else after a
+    self-serve redirect, the chat should actually close rather than
+    leaving the session open indefinitely.
+  turns:
+    - "Hi, I need to change the phone number on my account."
+    - "Yes, I still have access to my old phone."
+    - "No, that's all, thanks."
+  expected_outcome: self_serve_redirect
+  expected_actions: [redirect_to_self_serve, close_chat]
+
 - id: happy_path_verified_and_changed
   description: >
     The core happy path: no old phone, but a valid ID passes on the first
@@ -30,6 +42,21 @@
     - "Please change it to +19998887777."
   expected_outcome: number_changed
   expected_actions: [look_up_account, verify_id, update_phone_number]
+
+- id: number_changed_then_closes_chat
+  description: >
+    Same close-out check on the other happy path: once the user confirms
+    they don't need anything else after a completed number change, the
+    chat should actually close.
+  turns:
+    - "Hi, I need to change the phone number on my account."
+    - "No, I lost my old phone and don't have that number anymore."
+    - "My account phone number is +15551234567."
+    - "[Uploaded ID photo: valid_id.jpg]"
+    - "Please change it to +19998887777."
+    - "Nope, that's everything, thank you!"
+  expected_outcome: number_changed
+  expected_actions: [look_up_account, verify_id, update_phone_number, close_chat]
 
 - id: three_failed_attempts_locks_account
   description: >
