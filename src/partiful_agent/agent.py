@@ -114,26 +114,44 @@ class Agent:
         self.messages.append({"role": "assistant", "content": message})
         return message
 
+    # Shown whenever Claude doesn't produce something usable — an API
+    # failure, or a reply with neither text nor a tool call. Deliberately
+    # doesn't end the session: unlike TOOL_LOOP_EXHAUSTED (the model
+    # genuinely couldn't resolve the turn after several tries), this is a
+    # one-off hiccup, so the user should just be able to try again.
+    _COULD_NOT_PROCESS_REPLY = "Sorry, I couldn't quite catch that — could you try again?"
+
     def _run_until_text_reply(self) -> str:
         for _ in range(config.MAX_TOOL_ITERATIONS):
-            response = self._client.messages.create(
-                model=config.MODEL,
-                max_tokens=config.MAX_TOKENS,
-                # cache_control marks a breakpoint: everything up through
-                # this block (the tool schemas, then this system prompt —
-                # both fully static) gets cached instead of re-billed at
-                # full price on every single call. Only the growing
-                # `messages` list below is ever actually new.
-                system=[
-                    {
-                        "type": "text",
-                        "text": SYSTEM_PROMPT,
-                        "cache_control": {"type": "ephemeral"},
-                    }
-                ],
-                tools=TOOL_SCHEMAS,
-                messages=self.messages,
-            )
+            try:
+                response = self._client.messages.create(
+                    model=config.MODEL,
+                    max_tokens=config.MAX_TOKENS,
+                    # cache_control marks a breakpoint: everything up through
+                    # this block (the tool schemas, then this system prompt —
+                    # both fully static) gets cached instead of re-billed at
+                    # full price on every single call. Only the growing
+                    # `messages` list below is ever actually new.
+                    system=[
+                        {
+                            "type": "text",
+                            "text": SYSTEM_PROMPT,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
+                    tools=TOOL_SCHEMAS,
+                    messages=self.messages,
+                )
+            except anthropic.AnthropicError:
+                # A network blip, rate limit, timeout, etc. — nothing was
+                # recorded for this turn, so append the fallback as the
+                # assistant's reply to keep the transcript's roles
+                # alternating for whatever the user sends next.
+                self.messages.append(
+                    {"role": "assistant", "content": self._COULD_NOT_PROCESS_REPLY}
+                )
+                return self._COULD_NOT_PROCESS_REPLY
+
             self.usage["input_tokens"] += response.usage.input_tokens
             self.usage["output_tokens"] += response.usage.output_tokens
             self.usage["cache_creation_input_tokens"] += (
@@ -148,7 +166,11 @@ class Agent:
                 block for block in response.content if block.type == "tool_use"
             ]
             if not tool_uses:
-                return self._extract_text(response.content)
+                # Normally plain text — Claude decided to just reply. On the
+                # rare turn where it produces neither a tool call nor any
+                # text at all, showing that blank string would look exactly
+                # like the chat silently breaking, so fall back instead.
+                return self._extract_text(response.content) or self._COULD_NOT_PROCESS_REPLY
 
             self.messages.append(
                 {"role": "user", "content": self._run_tools(tool_uses)}

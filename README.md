@@ -46,6 +46,7 @@ tests/
   run_test_set.py             Runs test_cases.yaml as real conversations against the live API
   test_guardrails.py          Fast, free unit tests for the security rules (no network calls)
   test_inactivity.py          Unit tests for the "are you still there?" / timeout logic
+  test_agent_resilience.py    Unit tests for API-failure handling (mocks the client, not Claude's behavior)
 assets/                       Sample ID images used by the test set (see generate_sample_ids.py)
 docs/brief.md                 Background on the manual process this agent replaces
 ```
@@ -92,7 +93,8 @@ running `streamlit`, since a real end user would never see that panel.
 Two layers, matching what's fast/free versus what proves the real thing:
 
 ```bash
-# Fast, free, deterministic — the guardrails and inactivity logic, no network calls
+# Fast, free, deterministic — guardrails, inactivity, and API-failure
+# handling — no network calls
 pytest tests/ -v
 
 # The test set — 19 real conversations against the live Claude API, checked
