@@ -1,1 +1,128 @@
-# partiful-case-study-kli
+# Partiful Support Agent — Change Phone Number
+
+An AI agent that automates Partiful's "I lost access to my old phone number"
+support flow: it identifies the account, collects and verifies a government
+ID, and (only after a real pass) commits the phone number change — all with
+as little human involvement as possible.
+
+Built for the Business Operations Associate take-home. The full problem
+statement is in [docs/brief.md](docs/brief.md).
+
+## Submission
+
+- **Scoping document:** _[link to the MVP scoping doc]_
+- **Demo recording:** _[link to the video walking through the test set]_
+- **Agent:** this repo — see [Running the agent](#running-the-agent) below
+- **Test set:** [tests/test_cases.yaml](tests/test_cases.yaml) — see [Testing](#testing)
+
+## How it works
+
+The support flow is a strict decision tree (do they have their old phone? →
+look up the account → verify ID → change the number), so the agent is a
+single Claude conversation with a small set of tools, not a multi-agent
+system:
+
+1. The user chats with the agent about their locked-out account.
+2. Claude decides which tool to call next (look up the account, verify an
+   uploaded ID, commit the change, escalate to a human, etc.) based on the
+   system prompt's flow.
+3. Every consequential action is validated against `SessionState`'s
+   guardrails **in plain Python** before it's allowed to run — so no amount
+   of clever prompting can talk the agent into changing a number without a
+   passed ID check. This is deliberate: the model drives the conversation,
+   but it does not get to decide what's allowed to happen.
+4. Real internal-API calls (account lookup, ID verification, committing the
+   change, locking an account, escalating to support) are stubbed in
+   `mock_api.py` per the assignment. Every call is printed to the terminal
+   as `[API CALL] ...` and logged to `state.actions_taken`, which is what
+   both the test suite and the UI's behavior are built on.
+
+```
+app.py                        Streamlit chat UI (rendering only, no business logic)
+src/partiful_agent/
+  agent.py                    Conversation loop: talks to Claude, dispatches tool calls
+  prompts.py                  System prompt — the flow, tone, and rules Claude follows
+  tools.py                    Tool schemas + implementations Claude can call
+  state.py                    SessionState + the guardrails that make the agent trustworthy
+  mock_api.py                 Stand-in for Partiful's internal APIs (prints every call)
+  config.py                   Tunable constants (retry limits, timeouts, model, pricing)
+tests/
+  test_cases.yaml             The required test set (15 scenarios, happy path + adversarial)
+  run_test_set.py             Runs test_cases.yaml as real conversations against the live API
+  test_guardrails.py          Fast, free unit tests for the security rules (no network calls)
+  test_inactivity.py          Unit tests for the "are you still there?" / timeout logic
+assets/                       Sample ID images used by the test set (see generate_sample_ids.py)
+docs/brief.md                 The original assignment prompt
+```
+
+### Guardrails (what keeps this safe to automate)
+
+All of the following are enforced in `state.py`, independent of anything the
+model says:
+
+- A phone number can only be changed after ID verification **passes** for
+  an **identified** account. There is no code path around this.
+- Three failed ID attempts locks the account from further automated changes.
+- Three unclear responses, three bad account lookups, or three invalid
+  proposed numbers each end the session and point the user to
+  `hello@partiful.com` instead of looping forever.
+- A proposed new number that's already attached to a *different* account
+  escalates immediately rather than being treated as a retryable typo.
+- A quiet user gets a check-in after 15 minutes and the session closes
+  after 5 more minutes of silence.
+
+## Running the agent
+
+Requires Python 3.11+ and an [Anthropic API key](https://console.anthropic.com/).
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # then paste your ANTHROPIC_API_KEY into .env
+streamlit run app.py
+```
+
+This opens the chat UI at `http://localhost:8501`. To exercise the ID
+verification step, upload one of the fixtures in `assets/` when prompted
+(`valid_id.jpg` passes; `blurry_id.jpg`, `expired_id.jpg`, and
+`mismatch_id.jpg` each fail for a different reason — the mock verifier keys
+off the filename, not the pixels, so a real image is never sent to Claude).
+Every mocked internal-API call the agent makes is printed to the terminal
+running `streamlit`, since a real end user would never see that panel.
+
+## Testing
+
+Two layers, matching what's fast/free versus what proves the real thing:
+
+```bash
+# Fast, free, deterministic — the guardrails and inactivity logic, no network calls
+pytest tests/ -v
+
+# The required test set — 15 real conversations against the live Claude API,
+# checked against the agent's own ground truth (state.outcome, exact tool
+# calls made), not fuzzy text matching. Prints real dollar cost at the end.
+python3 tests/run_test_set.py
+
+# Re-run just the case(s) you're debugging instead of paying for all 15
+python3 tests/run_test_set.py happy_path_verified_and_changed
+```
+
+`tests/test_cases.yaml` covers the in-scope happy paths (self-serve
+redirect, verify-and-change, three-strikes lockout), every exhaustion path
+(unclear intent, bad phone lookups, bad new numbers), a couple of
+regression cases for real bugs hit during development, and an adversarial
+case that tries to talk the agent into skipping verification outright.
+
+## Assumptions & scope
+
+Notable assumptions made to keep this a buildable MVP (full rationale in
+the scoping document):
+
+- Only US (`+1`) numbers are supported by the mock lookup/verification.
+- ID verification is a deterministic stub keyed off the uploaded file's
+  name, standing in for a real vendor (e.g. Persona, Stripe Identity).
+- Internal API calls are printed, not executed, per the assignment.
+
+What's explicitly **out of scope for MVP** — and why — is written up in the
+scoping document linked above, not duplicated here.

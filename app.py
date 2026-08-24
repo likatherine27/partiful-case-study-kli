@@ -91,6 +91,8 @@ _STYLE = """
     --pf-text: #F5F3F8;
     --pf-overlay: rgba(255,255,255,0.08);
     --pf-overlay-border: rgba(255,255,255,0.14);
+    --pf-overlay-assistant: rgba(124,141,196,0.16);
+    --pf-overlay-assistant-border: rgba(124,141,196,0.28);
 }
 [data-testid="stApp"] {
     background:
@@ -137,14 +139,28 @@ h1 {
 }
 [data-testid="stChatMessage"] {
     background: transparent !important;
-    /* Top-align the avatar with the FIRST line, not the vertical middle
-       of the whole block — matters once a message wraps to 2+ lines. */
-    align-items: flex-start !important;
+    /* Center the avatar on the bubble's vertical middle rather than its
+       top edge — the bubble's own padding is taller than the avatar, so
+       top-alignment left single-line text looking bottom-heavy next to
+       the avatar. */
+    align-items: center !important;
+    gap: 10px !important;
 }
 [data-testid="stChatMessageContent"] p {
     margin: 0;
     font-size: 15px;
     line-height: 1.5;
+}
+/* Streamlit gives stMarkdownContainer a -16px bottom margin to cancel
+   out the browser's default <p> spacing in normal document flow. Inside
+   this flex-centered row that collapses the block's LAYOUT height down
+   near zero while the real text still paints at full height with
+   overflow:visible — so the bubble's padding ends up wrapping an
+   assumed-empty box and the text visually hangs off the bottom instead
+   of sitting centered in it. Neutralizing it lets padding wrap the
+   text's true height. */
+[data-testid="stChatMessageContent"] [data-testid="stMarkdownContainer"] {
+    margin-bottom: 0 !important;
 }
 /* User row: icon on the right */
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
@@ -161,16 +177,27 @@ h1 {
        instead of clipping it — a fixed height fights wrapped content. */
     padding: 19px 18px;
     color: var(--pf-text);
+    /* Streamlit auto-centers a max-width content block by default,
+       which was splitting the leftover space into two large margins
+       instead of letting the bubble sit snug against the avatar. Pin
+       it to the avatar side (right) so only `gap` separates them. */
+    margin-left: auto !important;
+    margin-right: 0 !important;
 }
-/* Assistant row. A custom avatar string (see ASSISTANT_AVATAR) gets NO
-   data-testid at all — Streamlit only adds stChatMessageAvatarAssistant
-   for its own built-in icon — so it's targeted structurally below by
-   "the first child that isn't the user avatar" instead. */
-[data-testid="stChatMessage"]:has(> div:first-child:not([data-testid="stChatMessageAvatarUser"])) [data-testid="stChatMessageContent"] {
-    background: transparent;
-    border: none;
-    padding: 6px 0;
+/* Assistant row. A custom avatar image (see ASSISTANT_AVATAR) renders as
+   a bare <img>, with NO data-testid at all — Streamlit only adds
+   stChatMessageAvatarAssistant for its own built-in icon — so it's
+   targeted structurally below by "the first child that isn't the user
+   avatar" instead (any tag, not just div, since it's an <img>). */
+[data-testid="stChatMessage"]:has(> :first-child:not([data-testid="stChatMessageAvatarUser"])) [data-testid="stChatMessageContent"] {
+    background: var(--pf-overlay-assistant);
+    border: 1px solid var(--pf-overlay-assistant-border);
+    border-radius: 16px;
+    max-width: 68%;
+    padding: 19px 18px;
     color: var(--pf-text);
+    margin-left: 0 !important;
+    margin-right: auto !important;
 }
 [data-testid="stChatMessageAvatarUser"] {
     background: #D7D6DC !important;
