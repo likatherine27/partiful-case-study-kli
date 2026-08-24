@@ -90,7 +90,11 @@ TOOL_SCHEMAS = [
             "prompted your first question. The result tells you whether to "
             "ask again or to stop and escalate."
         ),
-        "input_schema": {"type": "object", "properties": {}},
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
     },
     {
         "name": "resume_after_self_serve_failure",
@@ -100,7 +104,11 @@ TOOL_SCHEMAS = [
             "you can proceed to look up their account and verify their ID, "
             "instead of the self-serve redirect being treated as final."
         ),
-        "input_schema": {"type": "object", "properties": {}},
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
     },
     {
         "name": "look_up_account",
@@ -120,6 +128,7 @@ TOOL_SCHEMAS = [
                 }
             },
             "required": ["phone_number"],
+            "additionalProperties": False,
         },
     },
     {
@@ -129,7 +138,11 @@ TOOL_SCHEMAS = [
             "being sent to change it themselves. Call this instead of doing "
             "any ID verification when the user confirms they have it."
         ),
-        "input_schema": {"type": "object", "properties": {}},
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
     },
     {
         "name": "verify_id",
@@ -148,6 +161,7 @@ TOOL_SCHEMAS = [
                 }
             },
             "required": ["image_ref"],
+            "additionalProperties": False,
         },
     },
     {
@@ -169,6 +183,7 @@ TOOL_SCHEMAS = [
                 }
             },
             "required": ["new_number"],
+            "additionalProperties": False,
         },
     },
     {
@@ -177,7 +192,11 @@ TOOL_SCHEMAS = [
             "Record that the user has no government ID at all to submit, and "
             "is being pointed to email support directly instead."
         ),
-        "input_schema": {"type": "object", "properties": {}},
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
     },
     {
         "name": "escalate_unrelated_topic",
@@ -187,7 +206,11 @@ TOOL_SCHEMAS = [
             "email support instead. Call this once you know the topic isn't a "
             "phone-number change, before telling the user."
         ),
-        "input_schema": {"type": "object", "properties": {}},
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
     },
     {
         "name": "close_chat",
@@ -198,7 +221,11 @@ TOOL_SCHEMAS = [
             "is ending. Not used after a completed number change — that "
             "flow ends on its own as soon as update_phone_number succeeds."
         ),
-        "input_schema": {"type": "object", "properties": {}},
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
     },
 ]
 
@@ -439,4 +466,12 @@ def execute_tool(
     handler = _HANDLERS.get(name)
     if handler is None:
         return f"Error: no such tool '{name}'."
-    return handler(state, api, **arguments)
+    try:
+        return handler(state, api, **arguments)
+    except Exception as exc:
+        # Nothing in TOOL_SCHEMAS stops Claude from sending a call with a
+        # missing, extra, or wrong-typed argument, and a handler crashing
+        # on that would take the whole turn down with it, leaving the user
+        # with no reply at all — same principle as "no such tool" above:
+        # hand back an error string Claude can react to instead.
+        return f"Error: '{name}' failed with those arguments ({exc})."

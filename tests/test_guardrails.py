@@ -475,3 +475,41 @@ def test_self_serve_redirect_does_not_end_the_chat_on_its_own():
 
 def test_in_progress_does_not_end_the_chat():
     assert not SessionOutcome.IN_PROGRESS.ends_chat
+
+
+# --- execute_tool degrades instead of crashing on a bad call ----------------
+
+
+def test_unknown_tool_name_returns_an_error_string():
+    state, api = _fresh()
+    result = execute_tool("not_a_real_tool", {}, state=state, api=api)
+    assert result.startswith("Error:")
+
+
+def test_missing_required_argument_returns_an_error_string_not_a_crash():
+    # Nothing in TOOL_SCHEMAS can force Claude to include a required
+    # argument — this is what happens if it calls verify_id without one.
+    state, api = _fresh()
+    result = execute_tool("verify_id", {}, state=state, api=api)
+    assert result.startswith("Error:")
+
+
+def test_unexpected_extra_argument_returns_an_error_string_not_a_crash():
+    # Same idea in the other direction: additionalProperties: False in the
+    # schema discourages this, but doesn't guarantee Claude never sends an
+    # extra key — a handler crashing on that would silently kill the whole
+    # turn and leave the user with no reply at all.
+    state, api = _fresh()
+    result = execute_tool(
+        "verify_id",
+        {"image_ref": "valid_id.jpg", "note": "unexpected"},
+        state=state,
+        api=api,
+    )
+    assert result.startswith("Error:")
+    # And a well-formed call right after still works normally — the bad
+    # call didn't leave the session in a broken state.
+    result2 = execute_tool(
+        "look_up_account", {"phone_number": VALID_PHONE}, state=state, api=api
+    )
+    assert "found account" in result2.lower()
